@@ -11,7 +11,7 @@ export default function PortalSplash({ onComplete, mode = "entry" }) {
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const timer = window.setTimeout(
       () => onCompleteRef.current(),
-      reduceMotion ? 120 : mode === "dashboard" ? 1550 : 1850
+      reduceMotion ? 120 : mode === "dashboard" ? 3100 : 3600
     );
     return () => window.clearTimeout(timer);
   }, [mode]);
