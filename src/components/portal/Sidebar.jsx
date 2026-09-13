@@ -32,11 +32,8 @@ export default function Sidebar({ onNavigate }) {
 
   return (
     <div className="flex flex-col h-full portal-shell-bg text-white">
-      <div className="px-5 pt-5 pb-4">
+      <div className="px-5 pt-5 pb-3">
         <Logo variant="light" size={30} />
-        <div className="mt-3 text-[11px] tracking-[0.2em] uppercase font-semibold" style={{ color: "#9FB5B3" }}>
-          Customer Portal
-        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-2" aria-label="Primary">
