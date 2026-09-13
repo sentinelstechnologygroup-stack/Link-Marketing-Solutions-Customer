@@ -13,16 +13,16 @@ export default function PortalLayout({ children }) {
   const title = current?.label || "Overview";
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--cream)" }}>
+    <div className="min-h-screen flex w-full overflow-x-hidden" style={{ background: "var(--cream)" }}>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-[248px] shrink-0 h-screen sticky top-0">
+      <aside className="hidden lg:flex w-[264px] min-w-[264px] shrink-0 h-screen sticky top-0 overflow-hidden">
         <Sidebar />
       </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 w-0 flex flex-col">
         <PreviewBanner />
         <TopBar title={title} onOpenMenu={() => setMenuOpen(true)} />
-        <main id="main-content" className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
+        <main id="main-content" className="flex-1 min-w-0 w-full overflow-x-hidden px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
           <PortalErrorBoundary>
             {children}
           </PortalErrorBoundary>
