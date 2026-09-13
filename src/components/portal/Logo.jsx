@@ -3,7 +3,7 @@ export default function Logo({ variant = "dark", size = 30, showWord = true, cla
 
   return (
     <div
-      className={`inline-flex max-w-full items-center overflow-hidden rounded-lg border border-[#164955]/70 bg-[#001922] shadow-sm ${variant === "light" ? "shadow-black/25" : ""} ${className}`}
+      className={`inline-flex max-w-full items-center overflow-hidden rounded-lg bg-[#001922] shadow-sm ${variant === "light" ? "shadow-black/25" : ""} ${className}`}
       aria-label="Link Marketing Services Customer Portal"
     >
       <img
