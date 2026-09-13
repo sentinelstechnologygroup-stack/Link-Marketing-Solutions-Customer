@@ -42,10 +42,10 @@ export default function Logo({ variant = "dark", size = 30, showWord = true, cla
           </filter>
         </defs>
         {tracePaths.map(({ d, delay, spark }) => (
-          <g key={d} style={{ "--electric-delay": delay }} filter={`url(#${electricFilterId})`}>
-            <path className="logo-electric__arc logo-electric__arc--glow" pathLength="1" d={d} />
-            <path className="logo-electric__arc logo-electric__arc--core" pathLength="1" d={d} />
-            <circle className="logo-electric__spark" cx={spark[0]} cy={spark[1]} r="7" />
+          <g key={d} filter={`url(#${electricFilterId})`}>
+            <path className="logo-electric__arc logo-electric__arc--glow" pathLength="1" d={d} style={{ animationDelay: delay }} />
+            <path className="logo-electric__arc logo-electric__arc--core" pathLength="1" d={d} style={{ animationDelay: delay }} />
+            <circle className="logo-electric__spark" cx={spark[0]} cy={spark[1]} r="7" style={{ animationDelay: delay }} />
           </g>
         ))}
       </svg>
