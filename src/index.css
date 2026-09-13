@@ -167,6 +167,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .logo-electric__overlay { display: none; }
+
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
