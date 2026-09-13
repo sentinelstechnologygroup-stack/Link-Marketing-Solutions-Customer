@@ -107,65 +107,159 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  .logo-electric__overlay {
+  .portal-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      radial-gradient(circle at 50% 44%, rgba(17, 104, 120, 0.22), transparent 34%),
+      linear-gradient(145deg, #00141c 0%, #001f29 48%, #001219 100%);
+    color: white;
+    animation: portal-splash-scene 1.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .portal-splash--dashboard {
+    animation-duration: 1.55s;
+  }
+
+  .portal-splash__aura {
+    position: absolute;
+    width: min(86vw, 980px);
+    aspect-ratio: 2.8 / 1;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(34, 187, 204, 0.15), transparent 66%);
+    filter: blur(30px);
+    animation: portal-splash-aura 1.5s ease-out both;
+  }
+
+  .portal-splash__content {
+    position: relative;
+    z-index: 1;
+    width: min(88vw, 940px);
+    text-align: center;
+  }
+
+  .portal-splash__logo-stage {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    border-radius: 18px;
+    transform: translateZ(0);
+  }
+
+  .portal-splash__logo {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(0 22px 44px rgba(0, 0, 0, 0.38));
+    animation: portal-splash-logo 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .portal-splash__light-sweep {
+    position: absolute;
+    inset: -35% auto -35% -26%;
+    width: 15%;
+    transform: skewX(-17deg);
+    background: linear-gradient(90deg, transparent, rgba(129, 239, 255, 0.12), rgba(243, 255, 255, 0.9), rgba(37, 187, 215, 0.18), transparent);
+    filter: blur(7px);
+    mix-blend-mode: screen;
+    animation: portal-splash-sweep 1.22s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .portal-splash__energy-line {
+    position: absolute;
+    left: 9%;
+    right: 9%;
+    bottom: 17%;
+    height: 1px;
+    transform: scaleX(0);
+    transform-origin: left;
+    background: linear-gradient(90deg, transparent, #3ed6ea 12%, #f5ffff 50%, #229db4 88%, transparent);
+    box-shadow: 0 0 8px rgba(99, 227, 246, 0.75), 0 0 22px rgba(18, 146, 169, 0.4);
+    animation: portal-splash-line 1.05s 0.32s cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+
+  .portal-splash__status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-top: clamp(12px, 2vw, 24px);
+    color: #a7c8cb;
+    font-size: clamp(9px, 1.15vw, 12px);
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: portal-splash-status 0.65s 0.72s ease-out forwards;
+  }
+
+  .portal-splash__status-line {
+    position: relative;
+    width: clamp(48px, 8vw, 86px);
+    height: 1px;
+    overflow: hidden;
+    background: rgba(154, 204, 209, 0.22);
+  }
+
+  .portal-splash__status-line::after {
+    content: "";
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    overflow: visible;
-    mix-blend-mode: screen;
-  }
-
-  .logo-electric__arc {
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 0.18 0.82;
-    stroke-dashoffset: 1;
-    vector-effect: non-scaling-stroke;
-    opacity: 0;
-    animation: logo-electric-trace 4.8s linear infinite;
-  }
-
-  .logo-electric__arc--glow {
-    stroke: #087dff;
-    stroke-width: 8;
-    filter: blur(4px) drop-shadow(0 0 8px #08a8ff);
-  }
-
-  .logo-electric__arc--core {
-    stroke: #f4ffff;
-    stroke-width: 2;
-    filter: drop-shadow(0 0 3px #7de8ff) drop-shadow(0 0 7px #087dff);
-  }
-
-  .logo-electric__spark {
-    fill: #ffffff;
-    opacity: 0;
-    filter: drop-shadow(0 0 5px #8ff4ff) drop-shadow(0 0 12px #087dff);
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: logo-electric-spark 4.8s ease-out infinite;
+    transform: translateX(-105%);
+    background: linear-gradient(90deg, transparent, #eaffff, #30bfd1);
+    animation: portal-splash-progress 0.8s 0.77s ease-out forwards;
   }
 }
 
-@keyframes logo-electric-trace {
-  0%, 2% { opacity: 0; stroke-dashoffset: 1; }
-  4% { opacity: 1; }
-  21% { opacity: 1; stroke-dashoffset: -0.18; }
-  27%, 100% { opacity: 0; stroke-dashoffset: -0.18; }
+@keyframes portal-splash-scene {
+  0% { opacity: 0; }
+  9%, 82% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
-@keyframes logo-electric-spark {
-  0%, 2% { opacity: 0; transform: scale(0.3); }
-  4% { opacity: 1; transform: scale(1.6); }
-  9% { opacity: 0.7; transform: scale(0.7); }
-  14%, 100% { opacity: 0; transform: scale(0.15); }
+@keyframes portal-splash-logo {
+  0% { opacity: 0; transform: scale(0.965) translateY(10px); filter: blur(9px) drop-shadow(0 22px 44px rgba(0, 0, 0, 0)); }
+  58% { opacity: 1; filter: blur(0) drop-shadow(0 22px 44px rgba(0, 0, 0, 0.38)); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes portal-splash-sweep {
+  0% { left: -26%; opacity: 0; }
+  12% { opacity: 0.9; }
+  78% { opacity: 0.75; }
+  100% { left: 116%; opacity: 0; }
+}
+
+@keyframes portal-splash-line {
+  0% { opacity: 0; transform: scaleX(0); }
+  18% { opacity: 1; }
+  74% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes portal-splash-aura {
+  0% { opacity: 0; transform: scale(0.72); }
+  55% { opacity: 1; }
+  100% { opacity: 0.55; transform: scale(1.08); }
+}
+
+@keyframes portal-splash-status {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes portal-splash-progress {
+  to { transform: translateX(105%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .logo-electric__overlay { display: none; }
+  .portal-splash { animation-duration: 0.12s; }
+  .portal-splash__aura, .portal-splash__light-sweep, .portal-splash__energy-line, .portal-splash__status-line::after { display: none; }
 
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
