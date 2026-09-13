@@ -8,7 +8,7 @@ export default function PortalSplash({ onComplete, mode = "entry" }) {
   }, [mode, onComplete]);
 
   return (
-    <div className="portal-splash" role="status" aria-live="polite" aria-label={mode === "dashboard" ? "Opening customer dashboard" : "Opening customer portal"}>
+    <div className={`portal-splash portal-splash--${mode}`} role="status" aria-live="polite" aria-label={mode === "dashboard" ? "Opening customer dashboard" : "Opening customer portal"}>
       <div className="portal-splash__aura" aria-hidden="true" />
       <div className="portal-splash__content">
         <div className="portal-splash__logo-stage">
