@@ -1,59 +1,105 @@
-import { Toaster } from "@/components/ui/toaster"
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ScrollToTop from './components/ScrollToTop';
-// Add page imports here
+import { lazy, Suspense } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClientInstance } from "@/lib/query-client";
+import { AuthProvider } from "@/lib/AuthContext";
+import UserNotRegisteredError from "@/components/UserNotRegisteredError";
+import ScrollToTop from "@/components/ScrollToTop";
+import PageNotFound from "@/lib/PageNotFound";
+import { PortalAuthProvider, usePortalAuth } from "@/lib/PortalAuthContext";
+import PortalProtectedRoute from "@/lib/PortalProtectedRoute";
+import PortalLayout from "@/components/portal/PortalLayout";
 
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+// Public auth pages (eager — small, needed before any protected route)
+import SignIn from "@/pages/portal/SignIn";
+import ForgotPassword from "@/pages/portal/ForgotPassword";
+import Verify from "@/pages/portal/Verify";
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+// Protected pages (lazy / code-split)
+const Dashboard = lazy(() => import("@/pages/portal/Dashboard"));
+const Leads = lazy(() => import("@/pages/portal/Leads"));
+const LeadDetail = lazy(() => import("@/pages/portal/LeadDetail"));
+const Appointments = lazy(() => import("@/pages/portal/Appointments"));
+const Reports = lazy(() => import("@/pages/portal/Reports"));
+const Billing = lazy(() => import("@/pages/portal/Billing"));
+const InvoiceDetail = lazy(() => import("@/pages/portal/InvoiceDetail"));
+const Documents = lazy(() => import("@/pages/portal/Documents"));
+const Support = lazy(() => import("@/pages/portal/Support"));
+const Notifications = lazy(() => import("@/pages/portal/Notifications"));
+const Security = lazy(() => import("@/pages/portal/Security"));
+const Account = lazy(() => import("@/pages/portal/Account"));
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
-  }
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <div className="w-8 h-8 border-2 border-[var(--line)] border-t-[var(--teal)] rounded-full animate-spin" />
+    </div>
+  );
+}
 
-  // Render the main app
+function ProtectedLayout() {
+  return (
+    <PortalLayout>
+      <Suspense fallback={<PageFallback />}>
+        <Outlet />
+      </Suspense>
+    </PortalLayout>
+  );
+}
+
+function RootRedirect() {
+  const { status } = usePortalAuth();
+  const location = useLocation();
+  if (status === "loading") return <PageFallback />;
+  if (status === "authenticated") return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/sign-in" replace state={{ from: location.pathname }} />;
+}
+
+function AppRoutes() {
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="/sign-in" element={<SignIn />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/verify" element={<Verify />} />
+
+      <Route element={<PortalProtectedRoute />}>
+        <Route element={<ProtectedLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/leads/:id" element={<LeadDetail />} />
+          <Route path="/appointments" element={<Appointments />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/billing/invoices/:id" element={<InvoiceDetail />} />
+          <Route path="/documents" element={<Documents />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/security" element={<Security />} />
+          <Route path="/account" element={<Account />} />
+        </Route>
+      </Route>
+
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
-};
-
-
-function App() {
-
-  return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <ScrollToTop />
-          <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
-  )
 }
 
-export default App
+function App() {
+  return (
+    <AuthProvider>
+      <PortalAuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <ScrollToTop />
+            <AppRoutes />
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </PortalAuthProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
