@@ -31,8 +31,8 @@ export default function Sidebar({ onNavigate }) {
   };
 
   return (
-    <div className="flex flex-col h-full portal-shell-bg text-white">
-      <div className="px-5 pt-5 pb-3">
+    <div className="flex flex-col h-full w-full min-w-0 overflow-x-hidden portal-shell-bg text-white">
+      <div className="min-w-0 px-5 pt-5 pb-3">
         <Logo variant="light" size={30} />
       </div>
 
