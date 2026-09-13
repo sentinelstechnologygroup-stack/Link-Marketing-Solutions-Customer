@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { ShieldCheck, ArrowLeft, RotateCw } from "lucide-react";
 import Logo from "@/components/portal/Logo";
+import PortalSplash from "@/components/portal/PortalSplash";
 import { usePortalAuth } from "@/lib/PortalAuthContext";
 import { PrimaryButton } from "@/components/portal/PageHeader";
 
@@ -18,12 +19,17 @@ export default function Verify() {
   const [err, setErr] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [resendIn, setResendIn] = useState(30);
+  const [openingDashboard, setOpeningDashboard] = useState(false);
 
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
+
+  if (openingDashboard) {
+    return <PortalSplash mode="dashboard" onComplete={() => navigate(from, { replace: true })} />;
+  }
 
   if (!pendingMfa) {
     // Direct visit without a pending MFA — return to sign-in.
@@ -44,7 +50,7 @@ export default function Verify() {
     setSubmitting(true);
     try {
       await verifyMfa({ code, method, trustDevice: trust });
-      navigate(from, { replace: true });
+      setOpeningDashboard(true);
     } catch (error) {
       setErr(error?.message || "Invalid or expired code. Try again.");
     } finally {
