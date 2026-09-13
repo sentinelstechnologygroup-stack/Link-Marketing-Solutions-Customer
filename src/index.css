@@ -126,7 +126,6 @@
     vector-effect: non-scaling-stroke;
     opacity: 0;
     animation: logo-electric-trace 4.8s linear infinite;
-    animation-delay: var(--electric-delay);
   }
 
   .logo-electric__arc--glow {
@@ -148,7 +147,6 @@
     transform-box: fill-box;
     transform-origin: center;
     animation: logo-electric-spark 4.8s ease-out infinite;
-    animation-delay: var(--electric-delay);
   }
 }
 
