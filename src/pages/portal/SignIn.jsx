@@ -53,9 +53,8 @@ export default function SignIn() {
       {/* Brand panel */}
       <div className="lg:w-[42%] xl:w-[40%] portal-shell-bg text-white flex flex-col p-7 sm:p-10 lg:p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px gold-rule" />
-        <div className="flex items-center justify-between">
+        <div>
           <Logo variant="light" size={32} />
-          <span className="eyebrow" style={{ color: "var(--gold)" }}>Customer Portal</span>
         </div>
 
         <div className="mt-auto lg:my-auto pt-12 lg:pt-0">
