@@ -77,7 +77,9 @@ async function request(method, path, body) {
 
 // ---- Auth -----------------------------------------------------------------
 async function getSession() {
-  if (isPreviewMode) { await delay(120); return null; }
+  // Base44/interface previews open directly into the sample customer workspace.
+  // A configured production API still requires its real secure session and MFA.
+  if (isPreviewMode) { await delay(120); return sampleSession; }
   try { return await request("GET", "/auth/session"); } catch (e) { if (e.status === 401) return null; throw e; }
 }
 
