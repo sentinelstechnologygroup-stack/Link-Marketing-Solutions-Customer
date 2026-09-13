@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Eye, EyeOff, ShieldCheck, Lock, LifeBuoy } from "lucide-react";
 import Logo from "@/components/portal/Logo";
+import PortalSplash from "@/components/portal/PortalSplash";
 import { usePortalAuth } from "@/lib/PortalAuthContext";
 import portalAdapter from "@/services/portalAdapter";
 import { PrimaryButton } from "@/components/portal/PageHeader";
@@ -26,6 +27,7 @@ export default function SignIn() {
   const [trust, setTrust] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
+  const [transition, setTransition] = useState("entry");
 
   const from = location.state?.from || "/dashboard";
 
@@ -39,7 +41,7 @@ export default function SignIn() {
       if (res?.requiresMfa) {
         navigate("/verify", { state: { from, trustDevice: trust } });
       } else {
-        navigate(from, { replace: true });
+        setTransition("dashboard");
       }
     } catch (error) {
       setErr(error?.message || "Sign-in failed. Please try again.");
@@ -47,6 +49,18 @@ export default function SignIn() {
       setSubmitting(false);
     }
   };
+
+  if (transition) {
+    return (
+      <PortalSplash
+        mode={transition}
+        onComplete={() => {
+          if (transition === "dashboard") navigate(from, { replace: true });
+          else setTransition(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row" style={{ background: "var(--offwhite)" }}>
