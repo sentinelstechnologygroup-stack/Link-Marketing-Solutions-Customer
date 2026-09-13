@@ -1,6 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="13" fill="#071b1e"/>
-  <path d="M13 12h9v31h16v9H13z" fill="#f3ead8"/>
-  <path d="M32 12h9v14l10-14h11L49 31l14 21H52L41 36v16h-9z" fill="#d4af37"/>
-  <path d="M10 57h44" stroke="#00838f" stroke-width="3" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Link product favicon</title>
+  <desc id="desc">Platinum and petrol-teal LK monogram on a deep navy rounded square</desc>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="42" x2="448" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#062C36"/>
+      <stop offset="0.48" stop-color="#001D26"/>
+      <stop offset="1" stop-color="#001219"/>
+    </linearGradient>
+    <linearGradient id="platinum" x1="112" y1="96" x2="356" y2="418" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF5"/>
+      <stop offset="0.28" stop-color="#D8D3C8"/>
+      <stop offset="0.52" stop-color="#F7F2E8"/>
+      <stop offset="0.78" stop-color="#B8B7B2"/>
+      <stop offset="1" stop-color="#EEE8DC"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="277" y1="254" x2="426" y2="423" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6EE7F0"/>
+      <stop offset="0.38" stop-color="#168EA2"/>
+      <stop offset="0.72" stop-color="#087184"/>
+      <stop offset="1" stop-color="#004B5B"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="36" y1="20" x2="478" y2="492" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#85EFF5" stop-opacity="0.72"/>
+      <stop offset="0.34" stop-color="#177C8C" stop-opacity="0.28"/>
+      <stop offset="0.72" stop-color="#06333E" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4BD9E5" stop-opacity="0.58"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#00080B" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  <rect x="12" y="12" width="488" height="488" rx="108" fill="url(#bg)"/>
+  <rect x="18" y="18" width="476" height="476" rx="102" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  <g filter="url(#shadow)">
+    <path d="M92 94h68v256h112v68H92z" fill="url(#platinum)"/>
+    <path d="M245 94h68v126L399 94h83L360 256l121 162h-84l-84-119v119h-68z" fill="url(#platinum)"/>
+    <path d="M313 268l48-63 120 213h-84z" fill="url(#teal)"/>
+  </g>
+  <path d="M108 112h36" stroke="#FFFFFF" stroke-opacity="0.58" stroke-width="5" stroke-linecap="round"/>
+  <path d="M262 112h34" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="5" stroke-linecap="round"/>
 </svg>
