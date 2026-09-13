@@ -106,6 +106,64 @@
   .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .logo-electric__overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    mix-blend-mode: screen;
+  }
+
+  .logo-electric__arc {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 0.18 0.82;
+    stroke-dashoffset: 1;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+    animation: logo-electric-trace 4.8s linear infinite;
+    animation-delay: var(--electric-delay);
+  }
+
+  .logo-electric__arc--glow {
+    stroke: #087dff;
+    stroke-width: 8;
+    filter: blur(4px) drop-shadow(0 0 8px #08a8ff);
+  }
+
+  .logo-electric__arc--core {
+    stroke: #f4ffff;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 3px #7de8ff) drop-shadow(0 0 7px #087dff);
+  }
+
+  .logo-electric__spark {
+    fill: #ffffff;
+    opacity: 0;
+    filter: drop-shadow(0 0 5px #8ff4ff) drop-shadow(0 0 12px #087dff);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: logo-electric-spark 4.8s ease-out infinite;
+    animation-delay: var(--electric-delay);
+  }
+}
+
+@keyframes logo-electric-trace {
+  0%, 2% { opacity: 0; stroke-dashoffset: 1; }
+  4% { opacity: 1; }
+  21% { opacity: 1; stroke-dashoffset: -0.18; }
+  27%, 100% { opacity: 0; stroke-dashoffset: -0.18; }
+}
+
+@keyframes logo-electric-spark {
+  0%, 2% { opacity: 0; transform: scale(0.3); }
+  4% { opacity: 1; transform: scale(1.6); }
+  9% { opacity: 0.7; transform: scale(0.7); }
+  14%, 100% { opacity: 0; transform: scale(0.15); }
 }
 
 @media (prefers-reduced-motion: reduce) {
