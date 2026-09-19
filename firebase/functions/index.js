@@ -130,3 +130,36 @@ exports.createDocumentMetadata = onCall(async (request) => {
   if (typeof name !== 'string' || !name.trim() || typeof storagePath !== 'string' || !storagePath.startsWith(`tenants/${tenantId}/`)) throw new HttpsError('invalid-argument', 'A tenant-scoped name and storagePath are required.');
   return createTenantRecord({ request, tenantId, collectionName: 'documents', roles: ['admin', 'supervisor', 'agent', 'customer'], action: 'document.metadata.created', data: { name: name.trim(), category: category || 'general', storagePath, contentType: contentType || 'application/octet-stream', sizeBytes: Number(sizeBytes) || 0, status: 'available' } });
 });
+
+exports.getLiveReport = onCall(async (request) => {
+  const { tenantId, rangeStart = null, rangeEnd = null } = request.data || {};
+  await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor', 'customer']);
+  const [leadsSnapshot, appointmentsSnapshot] = await Promise.all([
+    db.collection(`tenants/${tenantId}/leads`).where('tenantId', '==', tenantId).get(),
+    db.collection(`tenants/${tenantId}/appointments`).where('tenantId', '==', tenantId).get(),
+  ]);
+  const inRange = (item) => {
+    const value = item.createdAt?.toDate?.() || (item.createdAt ? new Date(item.createdAt) : null);
+    return (!rangeStart || !value || value >= new Date(rangeStart)) && (!rangeEnd || !value || value <= new Date(rangeEnd));
+  };
+  const leads = leadsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter(inRange);
+  const appointments = appointmentsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter(inRange);
+  const qualified = leads.filter((lead) => ['qualified', 'appointment set', 'handed off', 'closed'].includes(String(lead.stage || lead.status || '').toLowerCase()));
+  const completed = leads.filter((lead) => ['closed', 'closed-won', 'closed won'].includes(String(lead.stage || lead.status || lead.disposition || '').toLowerCase()));
+  return {
+    tenantId,
+    rangeStart,
+    rangeEnd,
+    metrics: {
+      leadVolume: leads.length,
+      qualifiedOpportunities: qualified.length,
+      appointments: appointments.length,
+      closedWon: completed.length,
+      qualificationRate: leads.length ? Number(((qualified.length / leads.length) * 100).toFixed(1)) : 0,
+      closeRate: leads.length ? Number(((completed.length / leads.length) * 100).toFixed(1)) : 0,
+    },
+    leads,
+    appointments,
+    generatedAt: new Date().toISOString(),
+  };
+});

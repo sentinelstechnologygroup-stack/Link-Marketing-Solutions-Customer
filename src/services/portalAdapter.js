@@ -265,7 +265,7 @@ const getAppointments = async () => {
 };
 const getReports = async (params) => {
   if (isDataFixtureMode()) return delay().then(() => sampleReports);
-  if (isFirebaseMode) return { range: params?.range || null, rows: await getTenantRows("reports") };
+  if (isFirebaseMode) return (await httpsCallable(firebaseFunctions, "getLiveReport")({ tenantId: await getActiveTenantId(), range: params?.range || null })).data;
   return request("GET", `/reports${params?.range ? `?range=${params.range}` : ""}`);
 };
 const getBilling = async () => {
