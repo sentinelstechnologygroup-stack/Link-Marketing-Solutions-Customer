@@ -25,6 +25,25 @@ const ADMIN_WRITE_COLLECTIONS = new Set([
   'organizations', 'brands', 'campaigns', 'leadSources', 'scripts',
   'qualificationForms', 'routingRules', 'phoneNumbers',
 ]);
+const REQUIRED_FIELDS = {
+  organizations: ['name', 'status', 'settings'],
+  brands: ['name', 'status', 'domain'],
+  campaigns: ['name', 'brandId', 'status', 'startDate', 'endDate'],
+  leadSources: ['name', 'type', 'status'],
+  leads: ['firstName', 'lastName', 'email', 'phone', 'status', 'sourceId', 'brandId', 'assignedTo'],
+  followUpTasks: ['leadId', 'assignedTo', 'status', 'dueAt'],
+  communicationAlerts: ['leadId', 'channel', 'status', 'sentAt'],
+  callRecords: ['leadId', 'agentUid', 'status', 'startedAt', 'endedAt'],
+  callTranscripts: ['callId', 'storagePath', 'status'],
+  callQualityReviews: ['callId', 'reviewerUid', 'score', 'status'],
+  appointments: ['leadId', 'title', 'scheduledStart', 'scheduledEnd', 'status', 'calendarProvider'],
+  businessOwners: ['leadId', 'name', 'email', 'phone'],
+  scripts: ['name', 'status', 'body', 'version'],
+  qualificationForms: ['name', 'status', 'fields', 'version'],
+  routingRules: ['name', 'status', 'priority', 'conditions', 'destination'],
+  phoneNumbers: ['phoneNumber', 'provider', 'status', 'assignedTo'],
+  reports: ['name', 'type', 'periodStart', 'periodEnd', 'status', 'storagePath'],
+};
 
 function writeRolesFor(collectionName) {
   if (ADMIN_WRITE_COLLECTIONS.has(collectionName)) return ['admin', 'supervisor'];
@@ -79,6 +98,12 @@ async function recordAudit({ tenantId, actorUid, action, target = null, metadata
 
 function objectInput(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function validateRequiredFields(collectionName, data) {
+  const input = objectInput(data);
+  const missing = (REQUIRED_FIELDS[collectionName] || []).filter((field) => input[field] === undefined || input[field] === null);
+  if (missing.length) throw new HttpsError('invalid-argument', `Missing required fields: ${missing.join(', ')}`);
 }
 
 async function createTenantRecord({ request, tenantId, collectionName, data, roles, action }) {
@@ -216,6 +241,7 @@ exports.createAgentRecord = onCall(async (request) => {
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs') throw new HttpsError('invalid-argument', 'Collection is not writable through the CRM API.');
   const roles = writeRolesFor(collectionName);
   if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
+  validateRequiredFields(collectionName, data);
   return createTenantRecord({ request, tenantId, collectionName, roles, action: `crm.${collectionName}.created`, data });
 });
 
