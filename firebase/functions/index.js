@@ -263,6 +263,61 @@ exports.updateAgentRecord = onCall(async (request) => {
   return { id: recordId, ...current.data(), ...patch };
 });
 
+exports.transitionLead = onCall(async (request) => {
+  const { tenantId, leadId, status, disposition = null, note = null } = request.data || {};
+  const allowed = new Set(['new', 'contacted', 'qualified', 'appointment_scheduled', 'handed_off', 'closed', 'duplicate']);
+  if (!allowed.has(status) || typeof leadId !== 'string' || !leadId) throw new HttpsError('invalid-argument', 'A valid leadId and status are required.');
+  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const leadRef = db.doc(`tenants/${tenantId}/leads/${leadId}`);
+  const result = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(leadRef);
+    if (!snapshot.exists || snapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
+    const patch = { status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
+    if (disposition !== null) patch.disposition = String(disposition).slice(0, 500);
+    if (note !== null) patch.latestNote = String(note).slice(0, 2000);
+    transaction.update(leadRef, patch);
+    return { id: leadId, ...snapshot.data(), ...patch };
+  });
+  await recordAudit({ tenantId, actorUid: caller.uid, action: 'lead.transitioned', target: leadId, metadata: { status } });
+  return result;
+});
+
+exports.appointmentWorkflow = onCall(async (request) => {
+  const { tenantId, action, appointmentId, data = {} } = request.data || {};
+  if (!['create', 'confirm', 'reschedule', 'cancel', 'attendance'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported appointment action.');
+  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const appointments = db.collection(`tenants/${tenantId}/appointments`);
+  let result;
+  if (action === 'create') {
+    const leadId = data.leadId || data.lead_id;
+    const title = data.title || data.subject;
+    if (typeof leadId !== 'string' || !leadId || typeof title !== 'string' || !title.trim()) throw new HttpsError('invalid-argument', 'leadId and title are required.');
+    const ref = appointments.doc();
+    const record = { ...objectInput(data), leadId, title: title.trim(), tenantId, status: data.status || 'booked', createdBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+    await db.runTransaction(async (transaction) => {
+      const leadRef = db.doc(`tenants/${tenantId}/leads/${leadId}`);
+      const lead = await transaction.get(leadRef);
+      if (!lead.exists || lead.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
+      transaction.set(ref, record);
+      transaction.update(leadRef, { status: 'appointment_scheduled', updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
+    });
+    result = { id: ref.id, ...record };
+  } else {
+    if (typeof appointmentId !== 'string' || !appointmentId) throw new HttpsError('invalid-argument', 'appointmentId is required.');
+    const ref = appointments.doc(appointmentId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists || snapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Appointment not found.');
+    const status = action === 'confirm' ? 'confirmed' : action === 'reschedule' ? 'booked' : action === 'cancel' ? 'canceled' : String(data.status || 'completed');
+    const patch = { ...objectInput(data), status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
+    delete patch.tenantId;
+    delete patch.createdAt;
+    await ref.update(patch);
+    result = { id: appointmentId, ...snapshot.data(), ...patch };
+  }
+  await recordAudit({ tenantId, actorUid: caller.uid, action: `appointment.${action}`, target: result.id });
+  return result;
+});
+
 exports.communications = onCall(async (request) => {
   const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
   const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
