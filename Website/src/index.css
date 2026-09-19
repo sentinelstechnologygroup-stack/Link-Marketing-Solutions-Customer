@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 178 55% 7%;
+    --card: 176 100% 12%;
+    --card-foreground: 180 25% 94%;
+    --popover: 176 100% 10%;
+    --popover-foreground: 180 25% 94%;
+    --primary: 46 62% 53%;
+    --primary-foreground: 178 55% 7%;
+    --secondary: 210 16% 95%;
+    --secondary-foreground: 178 55% 7%;
+    --muted: 210 16% 95%;
+    --muted-foreground: 200 8% 38%;
+    --accent: 176 80% 18%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 175 25% 88%;
+    --input: 175 25% 88%;
+    --ring: 46 62% 53%;
+    --radius: 0.5rem;
+    --font-heading: 'Playfair Display', Georgia, serif;
+    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply text-foreground font-body antialiased;
+    background-color: #f4f1ea;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  .skip-link {
+    position: fixed;
+    left: 1rem;
+    top: 1rem;
+    z-index: 100;
+    transform: translateY(-200%);
+    border-radius: .375rem;
+    background: #d4af37;
+    color: #04181a;
+    padding: .75rem 1rem;
+    font-weight: 700;
+  }
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+  }
+  ::selection {
+    background: rgba(212, 175, 55, 0.28);
+    color: #04181a;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(248, 249, 250, 0.82);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .pulse-line {
+    background: linear-gradient(90deg, transparent, #d4af37, transparent);
+  }
+  .text-gradient {
+    background: linear-gradient(90deg, #04181a 0%, #00838f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glow-cyan {
+    box-shadow: 0 0 40px -8px rgba(212, 175, 55, 0.35);
+  }
+  .card-surface {
+    background: linear-gradient(160deg, #004248, #00363b);
+    border: 1px solid rgba(212, 175, 55, 0.14);
+  }
+  .card-light {
+    background: #fbfaf7;
+    border: 1px solid rgba(0, 40, 45, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 40, 45, 0.04), 0 14px 36px -20px rgba(0, 40, 45, 0.18);
+  }
+  .editorial-kicker {
+    color: #d4af37;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .premium-rule {
+    height: 1px;
+    width: 2.5rem;
+    background: #d4af37;
+  }
+  .photo-overlay {
+    background: linear-gradient(90deg, rgba(0, 40, 45, 0.98) 0%, rgba(0, 40, 45, 0.78) 42%, rgba(0, 40, 45, 0.08) 78%);
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(0, 40, 45, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 40, 45, 0.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+  .bg-radial-cyan {
+    background: radial-gradient(circle at 50% 0%, rgba(0, 131, 143, 0.07), transparent 60%);
+  }
+}

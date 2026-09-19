@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Link Marketing Services",
+  "short_name": "Link",
+  "description": "Professional lead response, qualification, appointment setting, and live transfer services.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071b1e",
+  "theme_color": "#071b1e",
+  "icons": [
+    {
+      "src": "/brand/favicon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
