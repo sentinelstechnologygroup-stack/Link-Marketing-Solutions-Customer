@@ -68,7 +68,7 @@ export default function Billing() {
       {/* Invoices */}
       <div className="mt-4">
         <SectionCard title="Invoice history" subtitle="Download invoices and receipts">
-          <div className="overflow-x-auto scrollbar-thin">
+          <div className="portal-table-scroll scrollbar-thin">
             <table className="w-full text-[13px]">
               <thead><tr className="text-left border-b" style={{ borderColor: "var(--line-2)" }}>
                 {["Invoice", "Period", "Date", "Qualified", "Amount", "Status", ""].map((h, i) => <th key={h} className={`px-2 py-2 eyebrow font-semibold ${i >= 3 ? "text-right" : ""}`} style={{ color: "var(--muted-ink)" }}>{h}</th>)}

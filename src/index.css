@@ -123,6 +123,16 @@
   }
 
   .touch-target { min-height: 44px; min-width: 44px; }
+
+  .portal-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .portal-table-scroll > table { min-width: 680px; }
 }
 
 @layer utilities {

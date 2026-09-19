@@ -47,7 +47,7 @@ export default function Reports() {
     <div>
       <PageHeader
         title="Reports"
-        description={`Performance for ${data.range} compared with ${data.comparison}.`}
+        description={`Performance for ${data.range || "the current period"} compared with ${data.comparison || "the previous period"}.`}
         actions={
           <>
             <select value={range} onChange={(e) => setRange(e.target.value)} className="touch-target rounded-lg px-3 text-[13px] bg-white border focus-ring" style={{ borderColor: "var(--line)" }}>
@@ -136,7 +136,7 @@ export default function Reports() {
 function PerformanceTable({ title, rows, headers }) {
   return (
     <SectionCard title={title}>
-      <div className="overflow-x-auto scrollbar-thin -mx-1">
+      <div className="portal-table-scroll scrollbar-thin -mx-1">
         <table className="w-full text-[13px]">
           <thead><tr className="text-left border-b" style={{ borderColor: "var(--line-2)" }}>{headers.map((h, i) => <th key={h} className={`px-2 py-2 eyebrow font-semibold ${i === 0 ? "text-left" : "text-right"}`} style={{ color: "var(--muted-ink)" }}>{h}</th>)}</tr></thead>
           <tbody>

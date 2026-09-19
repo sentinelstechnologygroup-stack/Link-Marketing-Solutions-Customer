@@ -10,7 +10,10 @@ export function usePortalData(fetcher, deps = []) {
   const run = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const result = await fetcher();
+      const timeout = new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("This section is taking longer than expected.")), 12000);
+      });
+      const result = await Promise.race([fetcher(), timeout]);
       setData(result);
     } catch (e) {
       if (e instanceof PortalApiError && e.status === 401) {
