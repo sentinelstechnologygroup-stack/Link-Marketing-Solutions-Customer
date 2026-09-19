@@ -18,6 +18,24 @@ const AGENT_COLLECTIONS = new Set([
   'phoneNumbers', 'reports', 'auditLogs',
 ]);
 
+function twilioConfigured() {
+  return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+}
+
+async function twilioRequest(path, method = 'POST', params = {}) {
+  if (!twilioConfigured()) throw new HttpsError('failed-precondition', 'Telephony is not configured.');
+  const body = new URLSearchParams(params);
+  const credentials = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}${path}`, {
+    method,
+    headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: method === 'GET' ? undefined : body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new HttpsError('internal', payload.message || 'Telephony provider request failed.');
+  return payload;
+}
+
 function requireAuth(request) {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required.');
   return request.auth;
@@ -199,4 +217,40 @@ exports.updateAgentRecord = onCall(async (request) => {
   await recordRef.update({ ...patch, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
   await recordAudit({ tenantId, actorUid: caller.uid, action: `crm.${collectionName}.updated`, target: recordId });
   return { id: recordId, ...current.data(), ...patch };
+});
+
+exports.communications = onCall(async (request) => {
+  const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
+  const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
+  const { caller } = await requireMembership(request, tenantId, roles);
+  if (!['health_check', 'start_call', 'end_call', 'hold_call', 'resume_call', 'warm_transfer'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported communications action.');
+  if (action === 'health_check') return { ok: true, configured: twilioConfigured(), provider: 'twilio', actorUid: caller.uid };
+  const callSid = typeof params.callId === 'string' ? params.callId : '';
+  if (!callSid && action !== 'start_call') throw new HttpsError('invalid-argument', 'A callId is required.');
+  let result;
+  if (action === 'start_call') {
+    if (!params.to || !process.env.TWILIO_FROM_NUMBER) throw new HttpsError('invalid-argument', 'A destination and configured caller number are required.');
+    result = await twilioRequest('/Calls.json', 'POST', { To: params.to, From: process.env.TWILIO_FROM_NUMBER, Url: params.twimlUrl || process.env.TWILIO_VOICE_WEBHOOK_URL });
+  } else if (action === 'end_call') {
+    result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Status: 'completed' });
+  } else if (action === 'hold_call' || action === 'resume_call') {
+    result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Twiml: action === 'hold_call' ? '<Response><Say>The call is on hold.</Say><Pause length="60"/></Response>' : '<Response><Say>Resuming call.</Say></Response>' });
+  } else {
+    if (!params.transferTo) throw new HttpsError('invalid-argument', 'A transfer destination is required.');
+    result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Twiml: `<Response><Dial>${String(params.transferTo).replace(/[<>]/g, '')}</Dial></Response>` });
+  }
+  await recordAudit({ tenantId, actorUid: caller.uid, action: `telephony.${action}`, target: callSid || result.sid || null });
+  return { ok: true, action, callId: result.sid || callSid, status: result.status || 'accepted' };
+});
+
+exports.twilioWebhook = onRequest({ cors: false }, async (request, response) => {
+  if (request.method !== 'POST') return response.status(405).send('Method not allowed');
+  if (!process.env.TWILIO_AUTH_TOKEN) return response.status(503).send('Telephony is not configured');
+  const signature = request.get('X-Twilio-Signature') || '';
+  const url = `${request.protocol}://${request.get('host')}${request.originalUrl}`;
+  const params = request.body || {};
+  const data = url + Object.keys(params).sort().map((key) => `${key}${params[key]}`).join('');
+  const expected = crypto.createHmac('sha1', process.env.TWILIO_AUTH_TOKEN).update(data).digest('base64');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return response.status(403).send('Invalid signature');
+  response.type('text/xml').send('<Response><Say>Link Marketing Services call connected.</Say></Response>');
 });
