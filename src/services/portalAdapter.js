@@ -104,6 +104,30 @@ const isDataFixtureMode = () => Boolean(
   || (UI_FIXTURES_ENABLED && DEMO_TENANT_IDS.has(activeTenantId))
 );
 
+// Keep the complete UI contract when a live tenant has no records yet.
+const emptyFromShape = (value) => {
+  if (Array.isArray(value)) return [];
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, emptyFromShape(child)]));
+  if (typeof value === "number") return 0;
+  if (typeof value === "boolean") return false;
+  return "";
+};
+const mergeShape = (shape, value) => {
+  if (Array.isArray(shape)) return Array.isArray(value) ? value : [];
+  if (shape && typeof shape === "object") {
+    const source = value && typeof value === "object" ? value : {};
+    return Object.fromEntries(Object.entries(shape).map(([key, child]) => [key, mergeShape(child, source[key])]));
+  }
+  return value === undefined || value === null ? emptyFromShape(shape) : value;
+};
+const normalizeLive = (shape, value) => mergeShape(emptyFromShape(shape), value);
+const normalizeDashboard = (value) => normalizeLive(sampleDashboard, value);
+const normalizeReports = (value) => {
+  const normalized = normalizeLive(sampleReports, value);
+  normalized.metrics = Object.fromEntries(Object.entries(normalized.metrics).map(([key, metric]) => [key, typeof metric === "number" ? { value: metric, change: 0 } : { value: metric?.value ?? 0, change: metric?.change ?? 0 }]));
+  return normalized;
+};
+
 async function getActiveTenantId() {
   const session = await getSession();
   return session?.memberships?.find((membership) => membership.active !== false)?.tenantId || null;
@@ -223,7 +247,23 @@ const getDashboard = async () => {
     const tenantId = session?.memberships?.[0]?.tenantId;
     if (!tenantId) return null;
     const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/dashboard/summary`));
-    return snapshot.exists() ? snapshot.data() : null;
+    return normalizeDashboard(snapshot.exists() ? snapshot.data() : null);
+  }
+  if (isFirebaseMode) {
+    return getTenantRows("leads").then((sourceRows) => {
+      let rows = sourceRows || [];
+      const { search, source, campaign, service, stage, qualification, handoff, disposition, rep } = params;
+      if (search) { const q = search.toLowerCase(); rows = rows.filter((r) => [r.name, r.email, r.phone, r.campaign, r.location].filter(Boolean).join(" ").toLowerCase().includes(q)); }
+      if (source && source !== "all") rows = rows.filter((r) => r.source === source);
+      if (campaign && campaign !== "all") rows = rows.filter((r) => r.campaign === campaign);
+      if (service && service !== "all") rows = rows.filter((r) => r.service === service);
+      if (stage && stage !== "all") rows = rows.filter((r) => r.stage === stage);
+      if (qualification && qualification !== "all") rows = rows.filter((r) => r.qualification === qualification);
+      if (handoff && handoff !== "all") rows = rows.filter((r) => (r.handoffType || "None") === handoff);
+      if (disposition && disposition !== "all") rows = rows.filter((r) => (r.disposition || "").startsWith(disposition));
+      if (rep && rep !== "all") rows = rows.filter((r) => r.rep === rep);
+      return { total: rows.length, rows };
+    });
   }
   return request("GET", "/dashboard");
 };
@@ -264,12 +304,12 @@ const getAppointments = async () => {
 };
 const getReports = async (params) => {
   if (isDataFixtureMode()) return delay().then(() => sampleReports);
-  if (isFirebaseMode) return (await httpsCallable(firebaseFunctions, "getLiveReport")({ tenantId: await getActiveTenantId(), range: params?.range || null })).data;
+  if (isFirebaseMode) return normalizeReports((await httpsCallable(firebaseFunctions, "getLiveReport")({ tenantId: await getActiveTenantId(), range: params?.range || null })).data);
   return request("GET", `/reports${params?.range ? `?range=${params.range}` : ""}`);
 };
 const getBilling = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleBilling);
-  if (isFirebaseMode) { const rows = await getTenantRows("billing"); return rows[0] || { invoices: [] }; }
+  if (isFirebaseMode) { const rows = await getTenantRows("billing"); return normalizeLive(sampleBilling, rows[0] || null); }
   return request("GET", "/billing");
 };
 const getInvoice = async (id) => {
@@ -291,7 +331,7 @@ const callTenantFunction = async (name, data) => {
 const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : isFirebaseMode ? callTenantFunction("createBillingReview", data) : request("POST", "/billing/reviews", data));
 const getDocuments = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleDocuments);
-  if (isFirebaseMode) return getTenantRows("documents");
+  if (isFirebaseMode) return getTenantRows("documents").then((rows) => rows || []);
   return request("GET", "/documents");
 };
 const createDocument = async (formData) => {
@@ -314,24 +354,24 @@ const downloadDocument = async (document) => {
 };
 const getSupport = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSupport);
-  if (isFirebaseMode) return getTenantRows("supportRequests");
+  if (isFirebaseMode) return getTenantRows("supportRequests").then((rows) => ({ requests: rows || [] }));
   return request("GET", "/support");
 };
 const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : isFirebaseMode ? callTenantFunction("createSupportRequest", data) : request("POST", "/support", data));
 const getNotifications = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleNotifications);
-  if (isFirebaseMode) { const user = firebaseAuth.currentUser; const rows = await getTenantRows("notifications"); return rows.filter((item) => !item.recipientUid || item.recipientUid === user?.uid); }
+  if (isFirebaseMode) { const user = firebaseAuth.currentUser; const rows = await getTenantRows("notifications"); return normalizeLive(sampleNotifications, { recent: (rows || []).filter((item) => !item.recipientUid || item.recipientUid === user?.uid) }); }
   return request("GET", "/notifications");
 };
 const updateNotifications = (prefs) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, preferences: prefs })) : isFirebaseMode ? callTenantFunction("updateNotificationPreferences", { preferences: prefs }) : request("PATCH", "/notifications/preferences", { preferences: prefs }));
 const getSecurity = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSecurity);
-  if (isFirebaseMode) return { mfaEnabled: !!firebaseAuth.currentUser?.multiFactor?.enrolledFactors?.length, sessions: [], trustedDevices: [], recentSignIns: [] };
+  if (isFirebaseMode) return normalizeLive(sampleSecurity, { mfaEnabled: !!firebaseAuth.currentUser?.multiFactor?.enrolledFactors?.length });
   return request("GET", "/security");
 };
 const getAccount = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleAccount);
-  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const tenant = await getDoc(doc(firebaseDb, `tenants/${tenantId}`)); const profile = await httpsCallable(firebaseFunctions, "getMyProfile")(); return { businessProfile: tenant.exists() ? tenant.data() : {}, memberships: profile.data?.memberships || [], user: profile.data || null, users: [] }; }
+  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return normalizeLive(sampleAccount, null); const tenant = await getDoc(doc(firebaseDb, `tenants/${tenantId}`)); const profile = await httpsCallable(firebaseFunctions, "getMyProfile")(); return normalizeLive(sampleAccount, { businessProfile: tenant.exists() ? tenant.data() : {}, memberships: profile.data?.memberships || [], user: profile.data || null, users: [] }); }
   return request("GET", "/account");
 };
 const inviteUser = (data) => (
