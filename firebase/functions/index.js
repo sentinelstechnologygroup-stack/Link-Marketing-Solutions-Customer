@@ -11,6 +11,12 @@ setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 const db = getFirestore();
 const auth = getAuth();
 const ROLES = new Set(['admin', 'supervisor', 'agent', 'auditor', 'customer']);
+const AGENT_COLLECTIONS = new Set([
+  'organizations', 'brands', 'campaigns', 'leadSources', 'leads', 'followUpTasks',
+  'communicationAlerts', 'callRecords', 'callTranscripts', 'callQualityReviews',
+  'appointments', 'businessOwners', 'scripts', 'qualificationForms', 'routingRules',
+  'phoneNumbers', 'reports', 'auditLogs',
+]);
 
 function requireAuth(request) {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -162,4 +168,35 @@ exports.getLiveReport = onCall(async (request) => {
     appointments,
     generatedAt: new Date().toISOString(),
   };
+});
+
+exports.getAgentCollection = onCall(async (request) => {
+  const { tenantId, collectionName, limit: requestedLimit = 200 } = request.data || {};
+  await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
+  if (!AGENT_COLLECTIONS.has(collectionName)) throw new HttpsError('invalid-argument', 'Collection is not available through the CRM API.');
+  const pageSize = Math.min(Math.max(Number(requestedLimit) || 200, 1), 500);
+  const snapshot = await db.collection(`tenants/${tenantId}/${collectionName}`).where('tenantId', '==', tenantId).limit(pageSize).get();
+  return { rows: snapshot.docs.map((item) => ({ id: item.id, ...item.data() })) };
+});
+
+exports.createAgentRecord = onCall(async (request) => {
+  const { tenantId, collectionName, data } = request.data || {};
+  if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs') throw new HttpsError('invalid-argument', 'Collection is not writable through the CRM API.');
+  return createTenantRecord({ request, tenantId, collectionName, roles: ['admin', 'supervisor', 'agent'], action: `crm.${collectionName}.created`, data });
+});
+
+exports.updateAgentRecord = onCall(async (request) => {
+  const { tenantId, collectionName, recordId, data } = request.data || {};
+  if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs' || typeof recordId !== 'string' || !recordId) throw new HttpsError('invalid-argument', 'A valid writable collection and recordId are required.');
+  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const recordRef = db.doc(`tenants/${tenantId}/${collectionName}/${recordId}`);
+  const current = await recordRef.get();
+  if (!current.exists || current.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Record not found.');
+  const patch = objectInput(data);
+  delete patch.tenantId;
+  delete patch.createdAt;
+  delete patch.createdBy;
+  await recordRef.update({ ...patch, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
+  await recordAudit({ tenantId, actorUid: caller.uid, action: `crm.${collectionName}.updated`, target: recordId });
+  return { id: recordId, ...current.data(), ...patch };
 });
