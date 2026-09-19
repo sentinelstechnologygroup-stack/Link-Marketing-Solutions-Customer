@@ -273,7 +273,16 @@ const getBilling = async () => {
   if (isFirebaseMode) { const rows = await getTenantRows("billing"); return rows[0] || { invoices: [] }; }
   return request("GET", "/billing");
 };
-const getInvoice = (id) => (isDataFixtureMode() ? delay().then(() => sampleInvoice) : request("GET", `/billing/invoices/${id}`));
+const getInvoice = async (id) => {
+  if (isDataFixtureMode()) return sampleInvoice;
+  if (isFirebaseMode) {
+    const tenantId = await getActiveTenantId();
+    if (!tenantId || !id) return null;
+    const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/invoices/${id}`));
+    return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+  }
+  return request("GET", `/billing/invoices/${id}`);
+};
 const callTenantFunction = async (name, data) => {
   if (!isFirebaseMode) return null;
   const tenantId = await getActiveTenantId();
@@ -326,7 +335,13 @@ const getAccount = async () => {
   if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const tenant = await getDoc(doc(firebaseDb, `tenants/${tenantId}`)); const profile = await httpsCallable(firebaseFunctions, "getMyProfile")(); return { businessProfile: tenant.exists() ? tenant.data() : {}, memberships: profile.data?.memberships || [], user: profile.data || null, users: [] }; }
   return request("GET", "/account");
 };
-const inviteUser = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `inv_${Date.now()}`, ...data, status: "Pending" })) : request("POST", "/account/users/invite", data));
+const inviteUser = (data) => (
+  isDataFixtureMode()
+    ? delay(400).then(() => ({ ok: true, id: `inv_${Date.now()}`, ...data, status: "Pending" }))
+    : isFirebaseMode
+      ? callTenantFunction("createInvitation", data)
+      : request("POST", "/account/users/invite", data)
+);
 
 export const portalAdapter = {
   isPreviewMode,
