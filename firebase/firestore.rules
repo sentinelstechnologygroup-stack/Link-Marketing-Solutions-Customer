@@ -27,6 +27,14 @@ service cloud.firestore {
       return role(tenantId) in ['admin', 'supervisor', 'agent', 'auditor'];
     }
 
+    function operationalCollection(collection) {
+      return collection in ['leads', 'followUpTasks', 'communicationAlerts', 'callRecords', 'callTranscripts', 'callQualityReviews', 'appointments', 'businessOwners', 'reports'];
+    }
+
+    function configurationCollection(collection) {
+      return collection in ['organizations', 'brands', 'campaigns', 'leadSources', 'scripts', 'qualificationForms', 'routingRules', 'phoneNumbers'];
+    }
+
     match /tenants/{tenantId} {
       allow read: if membership(tenantId);
       allow write: if signedIn() && membership(tenantId) && role(tenantId) == 'admin';
@@ -50,15 +58,17 @@ service cloud.firestore {
           && collection != 'members'
           && collection != 'auditLogs'
           && tenantData(tenantId)
-          && role(tenantId) in ['admin', 'supervisor', 'agent']
-          && collection in ['leads', 'appointments', 'support', 'documents'];
+          && ((role(tenantId) in ['admin', 'supervisor', 'agent'] && operationalCollection(collection))
+            || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
+            || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
         allow update: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
           && resource.data.tenantId == tenantId
           && tenantData(tenantId)
-          && role(tenantId) in ['admin', 'supervisor', 'agent']
-          && collection in ['leads', 'appointments', 'support', 'documents'];
+          && ((role(tenantId) in ['admin', 'supervisor', 'agent'] && operationalCollection(collection))
+            || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
+            || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
         allow delete: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
