@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membership(tenantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.active == true;
+    }
+
+    function role(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function tenantData(tenantId) {
+      return request.resource.data.tenantId == tenantId;
+    }
+
+    function customerReadable(collection) {
+      return collection in ['dashboard', 'leads', 'appointments', 'reports', 'billing', 'invoices', 'documents', 'support', 'supportRequests', 'notifications'];
+    }
+
+    function staffRole(tenantId) {
+      return role(tenantId) in ['admin', 'supervisor', 'agent', 'auditor'];
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if membership(tenantId);
+      allow write: if signedIn() && membership(tenantId) && role(tenantId) == 'admin';
+
+      match /members/{uid} {
+        allow read: if membership(tenantId) && (uid == request.auth.uid || role(tenantId) == 'admin');
+        allow write: if false;
+      }
+
+      match /auditLogs/{auditId} {
+        allow read: if membership(tenantId);
+        allow write: if false;
+      }
+
+      match /{collection}/{documentId} {
+        allow read: if membership(tenantId)
+          && collection != 'members'
+          && collection != 'auditLogs'
+          && (staffRole(tenantId) || (role(tenantId) == 'customer' && customerReadable(collection)));
+        allow create: if membership(tenantId)
+          && collection != 'members'
+          && collection != 'auditLogs'
+          && tenantData(tenantId)
+          && role(tenantId) in ['admin', 'supervisor', 'agent']
+          && collection in ['leads', 'appointments', 'support', 'documents'];
+        allow update: if membership(tenantId)
+          && collection != 'members'
+          && collection != 'auditLogs'
+          && resource.data.tenantId == tenantId
+          && tenantData(tenantId)
+          && role(tenantId) in ['admin', 'supervisor', 'agent']
+          && collection in ['leads', 'appointments', 'support', 'documents'];
+        allow delete: if membership(tenantId)
+          && collection != 'members'
+          && collection != 'auditLogs'
+          && role(tenantId) == 'admin';
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

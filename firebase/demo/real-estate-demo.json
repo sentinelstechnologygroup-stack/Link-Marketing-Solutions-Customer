@@ -1,0 +1,34 @@
+{
+  "vertical": "real-estate",
+  "displayName": "Link Marketing Services Realtor Demo",
+  "tenantId": "tenant-lms-realtor-demo",
+  "environment": "demo",
+  "industry": "Real Estate Brokerage",
+  "branding": {
+    "portalName": "Golden Cross Realty Customer Portal",
+    "primaryContactLabel": "Realtor",
+    "salesTeamLabel": "Realty Team"
+  },
+  "leadModel": {
+    "contactTypes": ["Buyer", "Seller", "Investor", "Relocation"],
+    "propertyTypes": ["Single-family", "Condominium", "Townhome", "Multi-family", "Land"],
+    "stages": ["New inquiry", "Contacted", "Qualified", "Consultation booked", "Showing scheduled", "Offer activity", "Under contract", "Closed", "Nurture", "Disqualified"],
+    "qualificationFields": ["contactType", "preferredMarket", "budgetOrPriceRange", "timeline", "financingStatus", "propertyType", "bedrooms", "bathrooms", "representationStatus"],
+    "requiredFields": ["firstName", "lastName", "email", "phone", "contactType", "preferredMarket", "timeline"]
+  },
+  "campaigns": [
+    { "id": "gc-buyer-consultation", "name": "Buyer Consultation", "source": "Website form" },
+    { "id": "gc-home-valuation", "name": "Home Valuation", "source": "Google" },
+    { "id": "gc-relocation", "name": "Relocation Services", "source": "Referral" },
+    { "id": "gc-investor", "name": "Investor Outreach", "source": "Paid search" }
+  ],
+  "appointmentTypes": ["Buyer consultation", "Listing consultation", "Property showing", "Market update", "Offer strategy", "Inspection coordination"],
+  "reportDimensions": ["leadSource", "campaign", "contactType", "market", "agent", "propertyType", "stage", "appointmentOutcome"],
+  "demoSafety": {
+    "containsProductionData": false,
+    "allowOutboundTelephony": false,
+    "allowOutboundEmail": false,
+    "allowBillingWrites": false,
+    "tenantMustBeMarkedDemo": true
+  }
+}

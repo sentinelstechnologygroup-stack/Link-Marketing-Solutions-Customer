@@ -1,0 +1,35 @@
+{
+  "tenantRoot": "tenants/{tenantId}",
+  "requiredTenantFields": ["tenantId", "createdAt", "updatedAt"],
+  "collections": {
+    "organizations": ["name", "status", "settings"],
+    "brands": ["name", "status", "domain"],
+    "campaigns": ["name", "brandId", "status", "startDate", "endDate"],
+    "leadSources": ["name", "type", "status"],
+    "leads": ["firstName", "lastName", "email", "phone", "status", "sourceId", "brandId", "assignedTo"],
+    "followUpTasks": ["leadId", "assignedTo", "status", "dueAt"],
+    "communicationAlerts": ["leadId", "channel", "status", "sentAt"],
+    "callRecords": ["leadId", "agentUid", "status", "startedAt", "endedAt"],
+    "callTranscripts": ["callId", "storagePath", "status"],
+    "callQualityReviews": ["callId", "reviewerUid", "score", "status"],
+    "appointments": ["leadId", "title", "scheduledStart", "scheduledEnd", "status", "calendarProvider"],
+    "businessOwners": ["leadId", "name", "email", "phone"],
+    "scripts": ["name", "status", "body", "version"],
+    "qualificationForms": ["name", "status", "fields", "version"],
+    "routingRules": ["name", "status", "priority", "conditions", "destination"],
+    "phoneNumbers": ["phoneNumber", "provider", "status", "assignedTo"],
+    "reports": ["name", "type", "periodStart", "periodEnd", "status", "storagePath"],
+    "billing": ["status", "balance", "currency", "currentPeriodStart", "currentPeriodEnd"],
+    "invoices": ["invoiceNumber", "status", "amount", "currency", "issuedAt", "dueAt"],
+    "documents": ["name", "category", "storagePath", "contentType", "sizeBytes", "status"],
+    "supportRequests": ["subject", "category", "status", "priority", "createdBy"],
+    "notifications": ["recipientUid", "type", "title", "body", "readAt"],
+    "auditLogs": ["actorUid", "action", "target", "metadata", "occurredAt"]
+  },
+  "storagePaths": {
+    "documents": "tenants/{tenantId}/documents/{documentId}/{fileName}",
+    "reports": "tenants/{tenantId}/reports/{reportId}/{fileName}",
+    "recordings": "tenants/{tenantId}/recordings/{callId}/{fileName}",
+    "exports": "tenants/{tenantId}/exports/{exportId}/{fileName}"
+  }
+}
