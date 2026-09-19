@@ -272,7 +272,7 @@ exports.transitionLead = onCall(async (request) => {
   const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(leadRef);
     if (!snapshot.exists || snapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
-    const patch = { status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
+    const patch = { status, lead_status: status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
     if (disposition !== null) patch.disposition = String(disposition).slice(0, 500);
     if (note !== null) patch.latestNote = String(note).slice(0, 2000);
     transaction.update(leadRef, patch);
