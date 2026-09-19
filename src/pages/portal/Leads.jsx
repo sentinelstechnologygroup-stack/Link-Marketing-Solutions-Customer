@@ -108,7 +108,13 @@ export default function Leads() {
 
       {loading ? <div className="portal-card"><TableSkeleton rows={6} cols={6} /></div> :
        error ? <ErrorState error={error} onRetry={retry} /> :
-       rows.length === 0 ? <div className="portal-card"><EmptyState title="No leads match these filters" description="Try widening your search or clearing filters." /></div> :
+       rows.length === 0 ? <div className="portal-card overflow-hidden">
+         <div className="overflow-x-auto scrollbar-thin">
+           <table className="w-full text-[13px]"><thead><tr className="text-left border-b" style={{ borderColor: "var(--line-2)", background: "var(--offwhite)" }}>
+             {["Prospect", "Source / Campaign", "Received", "Response", "Stage", "Qualification", "Handoff", "Rep", ""].map((h) => <th key={h} className="px-4 py-3 eyebrow font-semibold" style={{ color: "var(--muted-ink)" }}>{h}</th>)}
+           </tr></thead><tbody><tr><td colSpan={9} className="px-4 py-10 text-center"><EmptyState title="No leads yet" description="New leads will appear here when they are received." /></td></tr></tbody></table>
+         </div>
+       </div> :
        (
         <>
           {/* Desktop table */}

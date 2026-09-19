@@ -80,7 +80,16 @@ export default function Documents() {
 
       {loading ? <div className="portal-card"><TableSkeleton rows={6} cols={4} /></div> :
        error ? <ErrorState error={error} onRetry={retry} /> :
-       rows.length === 0 ? <div className="portal-card"><EmptyState title="No documents found" description="Try a different search or category." /></div> :
+       rows.length === 0 ? <div className="portal-card overflow-hidden">
+         <div className="overflow-x-auto scrollbar-thin">
+           <table className="w-full text-[13px]">
+             <thead><tr className="text-left border-b" style={{ borderColor: "var(--line-2)", background: "var(--offwhite)" }}>
+               {["Document", "Category", "Uploaded", "Updated", "Uploaded by", "Size", "Access", ""].map((h) => <th key={h} className="px-3 py-3 eyebrow font-semibold" style={{ color: "var(--muted-ink)" }}>{h}</th>)}
+             </tr></thead>
+             <tbody><tr><td colSpan={8} className="px-3 py-10 text-center"><EmptyState title="No documents yet" description="Uploaded documents will appear here when they are added to this account." /></td></tr></tbody>
+           </table>
+         </div>
+       </div> :
        (
         <div className="portal-card overflow-hidden">
           <div className="overflow-x-auto scrollbar-thin">
