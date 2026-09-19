@@ -58,7 +58,6 @@ export const isFirebaseMode = firebaseConfigured && !API_URL;
 const DEMO_TENANT_IDS = new Set([
   "tenant-lms-realtor-demo",
   "tenant-golden-cross-demo",
-  "tenant-lms-customer-test",
 ]);
 let activeTenantId = null;
 
