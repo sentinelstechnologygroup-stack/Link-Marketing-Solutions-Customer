@@ -40,10 +40,11 @@ import {
   sampleReports, sampleBilling, sampleInvoice, sampleDocuments,
   sampleSupport, sampleNotifications, sampleSecurity, sampleAccount,
 } from "./sampleData";
-import { firebaseAuth, firebaseConfigured, firebaseFunctions, firebaseDb } from "@/lib/firebaseClient";
+import { firebaseAuth, firebaseConfigured, firebaseFunctions, firebaseDb, firebaseStorage } from "@/lib/firebaseClient";
 import { httpsCallable } from "firebase/functions";
 import { sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 const API_URL = (import.meta.env && import.meta.env.VITE_CUSTOMER_PORTAL_API_URL) || "";
 const PREVIEW_DATA_ENABLED = (import.meta.env && import.meta.env.VITE_PORTAL_PREVIEW_DATA === "true");
@@ -285,7 +286,24 @@ const getDocuments = async () => {
   if (isFirebaseMode) return getTenantRows("documents");
   return request("GET", "/documents");
 };
-const createDocument = (formData) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `doc_${Date.now()}` })) : request("POST", "/documents", formData));
+const createDocument = async (formData) => {
+  if (isDataFixtureMode()) return delay(400).then(() => ({ ok: true, id: `doc_${Date.now()}` }));
+  if (!isFirebaseMode) return request("POST", "/documents", formData);
+  const file = formData?.get("file");
+  if (!(file instanceof File)) throw new PortalApiError(422, "A file is required");
+  const tenantId = await getActiveTenantId();
+  if (!tenantId) throw new PortalApiError(403, "No active tenant membership");
+  if (file.size > 25 * 1024 * 1024) throw new PortalApiError(413, "File exceeds the 25 MB limit");
+  const documentId = `${Date.now()}-${crypto.randomUUID()}`;
+  const storagePath = `tenants/${tenantId}/documents/${documentId}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  await uploadBytes(ref(firebaseStorage, storagePath), file, { contentType: file.type || "application/octet-stream" });
+  return callTenantFunction("createDocumentMetadata", { name: file.name, category: formData.get("category") || "Customer-uploaded files", storagePath, contentType: file.type, sizeBytes: file.size });
+};
+const downloadDocument = async (document) => {
+  if (isDataFixtureMode()) return null;
+  if (isFirebaseMode && document?.storagePath) return getDownloadURL(ref(firebaseStorage, document.storagePath));
+  return null;
+};
 const getSupport = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSupport);
   if (isFirebaseMode) return getTenantRows("supportRequests");
@@ -317,7 +335,7 @@ export const portalAdapter = {
   apiUrl: API_URL,
   auth: { getSession, createSession, verifyMfa, deleteSession, requestRecovery, completeRecovery },
   getDashboard, getLeads, getLead, getAppointments, getReports, getBilling, getInvoice,
-  createBillingReview, getDocuments, createDocument, getSupport, createSupport,
+  createBillingReview, getDocuments, createDocument, downloadDocument, getSupport, createSupport,
   getNotifications, updateNotifications, getSecurity, getAccount, inviteUser,
 };
 
