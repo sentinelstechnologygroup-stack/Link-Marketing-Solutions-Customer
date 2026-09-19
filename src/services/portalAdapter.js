@@ -43,7 +43,7 @@ import {
 import { firebaseAuth, firebaseConfigured, firebaseFunctions, firebaseDb } from "@/lib/firebaseClient";
 import { httpsCallable } from "firebase/functions";
 import { sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 
 const API_URL = (import.meta.env && import.meta.env.VITE_CUSTOMER_PORTAL_API_URL) || "";
 const PREVIEW_DATA_ENABLED = (import.meta.env && import.meta.env.VITE_PORTAL_PREVIEW_DATA === "true");
@@ -103,6 +103,23 @@ const isDataFixtureMode = () => Boolean(
   || PREVIEW_DATA_ENABLED
   || (UI_FIXTURES_ENABLED && DEMO_TENANT_IDS.has(activeTenantId))
 );
+
+async function getActiveTenantId() {
+  const session = await getSession();
+  return session?.memberships?.find((membership) => membership.active !== false)?.tenantId || null;
+}
+
+async function getTenantRows(collectionName) {
+  if (!isFirebaseMode) return null;
+  const tenantId = await getActiveTenantId();
+  if (!tenantId) return [];
+  const snapshot = await getDocs(query(
+    collection(firebaseDb, `tenants/${tenantId}/${collectionName}`),
+    where("tenantId", "==", tenantId),
+    limit(250),
+  ));
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
 export const isPreviewOrBypassMode = () => isBypassMode();
 
 export class PortalApiError extends Error {
@@ -235,20 +252,56 @@ function getLeads(params = {}) {
   return request("GET", `/leads${qs ? `?${qs}` : ""}`);
 }
 
-const getLead = (id) => (isDataFixtureMode() ? delay().then(() => sampleLeads.find((l) => l.id === id) || null) : request("GET", `/leads/${id}`));
-const getAppointments = () => (isDataFixtureMode() ? delay().then(() => sampleAppointments) : request("GET", "/appointments"));
-const getReports = (params) => (isDataFixtureMode() ? delay().then(() => sampleReports) : request("GET", `/reports${params?.range ? `?range=${params.range}` : ""}`));
-const getBilling = () => (isDataFixtureMode() ? delay().then(() => sampleBilling) : request("GET", "/billing"));
+const getLead = async (id) => {
+  if (isDataFixtureMode()) return delay().then(() => sampleLeads.find((l) => l.id === id) || null);
+  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/leads/${id}`)); return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null; }
+  return request("GET", `/leads/${id}`);
+};
+const getAppointments = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleAppointments);
+  if (isFirebaseMode) return getTenantRows("appointments");
+  return request("GET", "/appointments");
+};
+const getReports = async (params) => {
+  if (isDataFixtureMode()) return delay().then(() => sampleReports);
+  if (isFirebaseMode) return { range: params?.range || null, rows: await getTenantRows("reports") };
+  return request("GET", `/reports${params?.range ? `?range=${params.range}` : ""}`);
+};
+const getBilling = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleBilling);
+  if (isFirebaseMode) { const rows = await getTenantRows("billing"); return rows[0] || { invoices: [] }; }
+  return request("GET", "/billing");
+};
 const getInvoice = (id) => (isDataFixtureMode() ? delay().then(() => sampleInvoice) : request("GET", `/billing/invoices/${id}`));
 const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : request("POST", "/billing/reviews", data));
-const getDocuments = () => (isDataFixtureMode() ? delay().then(() => sampleDocuments) : request("GET", "/documents"));
+const getDocuments = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleDocuments);
+  if (isFirebaseMode) return getTenantRows("documents");
+  return request("GET", "/documents");
+};
 const createDocument = (formData) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `doc_${Date.now()}` })) : request("POST", "/documents", formData));
-const getSupport = () => (isDataFixtureMode() ? delay().then(() => sampleSupport) : request("GET", "/support"));
+const getSupport = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleSupport);
+  if (isFirebaseMode) return getTenantRows("supportRequests");
+  return request("GET", "/support");
+};
 const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : request("POST", "/support", data));
-const getNotifications = () => (isDataFixtureMode() ? delay().then(() => sampleNotifications) : request("GET", "/notifications"));
+const getNotifications = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleNotifications);
+  if (isFirebaseMode) { const user = firebaseAuth.currentUser; const rows = await getTenantRows("notifications"); return rows.filter((item) => !item.recipientUid || item.recipientUid === user?.uid); }
+  return request("GET", "/notifications");
+};
 const updateNotifications = (prefs) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, preferences: prefs })) : request("PATCH", "/notifications/preferences", { preferences: prefs }));
-const getSecurity = () => (isDataFixtureMode() ? delay().then(() => sampleSecurity) : request("GET", "/security"));
-const getAccount = () => (isDataFixtureMode() ? delay().then(() => sampleAccount) : request("GET", "/account"));
+const getSecurity = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleSecurity);
+  if (isFirebaseMode) return { mfaEnabled: !!firebaseAuth.currentUser?.multiFactor?.enrolledFactors?.length, sessions: [], trustedDevices: [], recentSignIns: [] };
+  return request("GET", "/security");
+};
+const getAccount = async () => {
+  if (isDataFixtureMode()) return delay().then(() => sampleAccount);
+  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const tenant = await getDoc(doc(firebaseDb, `tenants/${tenantId}`)); const profile = await httpsCallable(firebaseFunctions, "getMyProfile")(); return { businessProfile: tenant.exists() ? tenant.data() : {}, memberships: profile.data?.memberships || [], user: profile.data || null, users: [] }; }
+  return request("GET", "/account");
+};
 const inviteUser = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `inv_${Date.now()}`, ...data, status: "Pending" })) : request("POST", "/account/users/invite", data));
 
 export const portalAdapter = {
