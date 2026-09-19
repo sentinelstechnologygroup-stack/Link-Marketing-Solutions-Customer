@@ -17,6 +17,20 @@ const AGENT_COLLECTIONS = new Set([
   'appointments', 'businessOwners', 'scripts', 'qualificationForms', 'routingRules',
   'phoneNumbers', 'reports', 'auditLogs',
 ]);
+const AGENT_WRITE_COLLECTIONS = new Set([
+  'leads', 'followUpTasks', 'communicationAlerts', 'callRecords', 'callTranscripts',
+  'callQualityReviews', 'appointments', 'businessOwners', 'reports',
+]);
+const ADMIN_WRITE_COLLECTIONS = new Set([
+  'organizations', 'brands', 'campaigns', 'leadSources', 'scripts',
+  'qualificationForms', 'routingRules', 'phoneNumbers',
+]);
+
+function writeRolesFor(collectionName) {
+  if (ADMIN_WRITE_COLLECTIONS.has(collectionName)) return ['admin', 'supervisor'];
+  if (AGENT_WRITE_COLLECTIONS.has(collectionName)) return ['admin', 'supervisor', 'agent'];
+  return [];
+}
 
 function twilioConfigured() {
   return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
@@ -200,13 +214,17 @@ exports.getAgentCollection = onCall(async (request) => {
 exports.createAgentRecord = onCall(async (request) => {
   const { tenantId, collectionName, data } = request.data || {};
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs') throw new HttpsError('invalid-argument', 'Collection is not writable through the CRM API.');
-  return createTenantRecord({ request, tenantId, collectionName, roles: ['admin', 'supervisor', 'agent'], action: `crm.${collectionName}.created`, data });
+  const roles = writeRolesFor(collectionName);
+  if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
+  return createTenantRecord({ request, tenantId, collectionName, roles, action: `crm.${collectionName}.created`, data });
 });
 
 exports.updateAgentRecord = onCall(async (request) => {
   const { tenantId, collectionName, recordId, data } = request.data || {};
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs' || typeof recordId !== 'string' || !recordId) throw new HttpsError('invalid-argument', 'A valid writable collection and recordId are required.');
-  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const roles = writeRolesFor(collectionName);
+  if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
+  const { caller } = await requireMembership(request, tenantId, roles);
   const recordRef = db.doc(`tenants/${tenantId}/${collectionName}/${recordId}`);
   const current = await recordRef.get();
   if (!current.exists || current.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Record not found.');
