@@ -1,5 +1,11 @@
 {
   "tenantRoot": "tenants/{tenantId}",
+  "authorizationModel": {
+    "customerAccess": "active tenants/{tenantId}/members/{uid} membership",
+    "agentAccess": "active agentUsers/{uid}/assignments/{tenantId} assignment",
+    "assignmentSource": "agentAssignments/{assignmentId}",
+    "clientControlledTenantFields": false
+  },
   "requiredTenantFields": ["tenantId", "createdAt", "updatedAt"],
   "collections": {
     "organizations": ["name", "status", "settings"],
@@ -31,5 +37,9 @@
     "reports": "tenants/{tenantId}/reports/{reportId}/{fileName}",
     "recordings": "tenants/{tenantId}/recordings/{callId}/{fileName}",
     "exports": "tenants/{tenantId}/exports/{exportId}/{fileName}"
+  },
+  "industryPolicies": {
+    "required": ["industryId", "workflowVersion", "scriptSetId", "qualificationFormId", "routingProfileId", "consentPolicyId", "retentionPolicyId"],
+    "medical": {"phiEnabled": false, "requiresApproval": true, "minimumNecessary": true}
   }
 }

@@ -45,6 +45,9 @@ const REQUIRED_FIELDS = {
   reports: ['name', 'type', 'periodStart', 'periodEnd', 'status', 'storagePath'],
 };
 
+const IMMUTABLE_TENANT_FIELDS = new Set(['tenantId', 'industry', 'brandId', 'sourceId', 'campaignId', 'routingProfileId', 'receivedAt', 'createdAt', 'createdBy']);
+const INDUSTRY_POLICY_FIELDS = ['industryId', 'workflowVersion', 'scriptSetId', 'qualificationFormId', 'routingProfileId', 'consentPolicyId', 'retentionPolicyId'];
+
 function writeRolesFor(collectionName) {
   if (ADMIN_WRITE_COLLECTIONS.has(collectionName)) return ['admin', 'supervisor'];
   if (AGENT_WRITE_COLLECTIONS.has(collectionName)) return ['admin', 'supervisor', 'agent'];
@@ -88,6 +91,22 @@ async function requireMembership(request, tenantId, roles = null) {
   return { caller, membership };
 }
 
+async function requireAgentAssignment(request, tenantId, roles = ['agent', 'supervisor', 'admin']) {
+  const caller = requireAuth(request);
+  const membership = await getMembership(tenantId, caller.uid);
+  if (membership && ['admin', 'supervisor'].includes(membership.role) && roles.includes(membership.role)) return { caller, membership, assignment: null };
+  const assignment = await db.doc(`agentUsers/${caller.uid}/assignments/${tenantId}`).get();
+  const data = assignment.exists ? assignment.data() : null;
+  if (!data || data.status !== 'active' || !roles.includes(data.role || 'agent')) throw new HttpsError('permission-denied', 'An active agent assignment is required for this tenant.');
+  return { caller, membership: data, assignment: data };
+}
+
+function stripImmutablePatch(data) {
+  const patch = objectInput(data);
+  for (const field of IMMUTABLE_TENANT_FIELDS) delete patch[field];
+  return patch;
+}
+
 async function recordAudit({ tenantId, actorUid, action, target = null, metadata = {} }) {
   await db.collection(`tenants/${tenantId}/auditLogs`).add({
     tenantId, actorUid, action, target, metadata,
@@ -106,8 +125,8 @@ function validateRequiredFields(collectionName, data) {
   if (missing.length) throw new HttpsError('invalid-argument', `Missing required fields: ${missing.join(', ')}`);
 }
 
-async function createTenantRecord({ request, tenantId, collectionName, data, roles, action }) {
-  const { caller } = await requireMembership(request, tenantId, roles);
+async function createTenantRecord({ request, tenantId, collectionName, data, roles, action, authorize = requireMembership }) {
+  const { caller } = await authorize(request, tenantId, roles);
   const now = FieldValue.serverTimestamp();
   const record = { ...objectInput(data), tenantId, createdBy: caller.uid, createdAt: now, updatedAt: now };
   const ref = await db.collection(`tenants/${tenantId}/${collectionName}`).add(record);
@@ -229,7 +248,7 @@ exports.getLiveReport = onCall(async (request) => {
 
 exports.getAgentCollection = onCall(async (request) => {
   const { tenantId, collectionName, limit: requestedLimit = 200 } = request.data || {};
-  await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
+  await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
   if (!AGENT_COLLECTIONS.has(collectionName)) throw new HttpsError('invalid-argument', 'Collection is not available through the CRM API.');
   const pageSize = Math.min(Math.max(Number(requestedLimit) || 200, 1), 500);
   const snapshot = await db.collection(`tenants/${tenantId}/${collectionName}`).where('tenantId', '==', tenantId).limit(pageSize).get();
@@ -242,7 +261,9 @@ exports.createAgentRecord = onCall(async (request) => {
   const roles = writeRolesFor(collectionName);
   if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
   validateRequiredFields(collectionName, data);
-  return createTenantRecord({ request, tenantId, collectionName, roles, action: `crm.${collectionName}.created`, data });
+  const input = objectInput(data);
+  if (collectionName === 'leads' && INDUSTRY_POLICY_FIELDS.some((field) => input[field] === undefined && field !== 'receivedAt')) throw new HttpsError('invalid-argument', 'Lead workflow metadata is required.');
+  return createTenantRecord({ request, tenantId, collectionName, roles, authorize: requireAgentAssignment, action: `crm.${collectionName}.created`, data: input });
 });
 
 exports.updateAgentRecord = onCall(async (request) => {
@@ -250,24 +271,60 @@ exports.updateAgentRecord = onCall(async (request) => {
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs' || typeof recordId !== 'string' || !recordId) throw new HttpsError('invalid-argument', 'A valid writable collection and recordId are required.');
   const roles = writeRolesFor(collectionName);
   if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
-  const { caller } = await requireMembership(request, tenantId, roles);
+  const { caller } = await requireAgentAssignment(request, tenantId, roles);
   const recordRef = db.doc(`tenants/${tenantId}/${collectionName}/${recordId}`);
   const current = await recordRef.get();
   if (!current.exists || current.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Record not found.');
-  const patch = objectInput(data);
-  delete patch.tenantId;
-  delete patch.createdAt;
-  delete patch.createdBy;
+  const patch = stripImmutablePatch(data);
   await recordRef.update({ ...patch, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
   await recordAudit({ tenantId, actorUid: caller.uid, action: `crm.${collectionName}.updated`, target: recordId });
   return { id: recordId, ...current.data(), ...patch };
+});
+
+exports.createAgentAssignment = onCall(async (request) => {
+  const { tenantId, agentUid, industry, brandId = null, campaignIds = [], sourceIds = [], scope = 'assigned', permissions = [] } = request.data || {};
+  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
+  if (typeof agentUid !== 'string' || !agentUid || typeof industry !== 'string' || !industry) throw new HttpsError('invalid-argument', 'agentUid and industry are required.');
+  const user = await auth.getUser(agentUid).catch(() => null);
+  if (!user || user.disabled) throw new HttpsError('not-found', 'Agent account is unavailable.');
+  const assignment = { agentUid, tenantId, industry, brandId, campaignIds, sourceIds, scope, permissions, role: 'agent', status: 'active', assignedBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+  const ref = db.collection('agentAssignments').doc();
+  await db.runTransaction(async (transaction) => {
+    transaction.set(ref, assignment);
+    transaction.set(db.doc(`agentUsers/${agentUid}`), { uid: agentUid, email: user.email || null, displayName: user.displayName || null, role: 'agent', status: 'active', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(db.doc(`agentUsers/${agentUid}/assignments/${tenantId}`), { ...assignment, assignmentId: ref.id }, { merge: true });
+  });
+  await recordAudit({ tenantId, actorUid: caller.uid, action: 'agent.assignment.created', target: ref.id, metadata: { agentUid, industry } });
+  return { id: ref.id, ...assignment, status: 'active' };
+});
+
+exports.revokeAgentAssignment = onCall(async (request) => {
+  const { tenantId, agentUid, assignmentId } = request.data || {};
+  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
+  if (typeof agentUid !== 'string' || typeof assignmentId !== 'string') throw new HttpsError('invalid-argument', 'agentUid and assignmentId are required.');
+  await db.doc(`agentAssignments/${assignmentId}`).update({ status: 'revoked', updatedAt: FieldValue.serverTimestamp(), revokedBy: caller.uid });
+  await db.doc(`agentUsers/${agentUid}/assignments/${tenantId}`).set({ status: 'revoked', updatedAt: FieldValue.serverTimestamp(), revokedBy: caller.uid }, { merge: true });
+  await recordAudit({ tenantId, actorUid: caller.uid, action: 'agent.assignment.revoked', target: assignmentId, metadata: { agentUid } });
+  return { ok: true, assignmentId, status: 'revoked' };
+});
+
+exports.setIndustryConfig = onCall(async (request) => {
+  const { industryId, config } = request.data || {};
+  const caller = requireAuth(request);
+  if (typeof industryId !== 'string' || !industryId || !config || typeof config !== 'object') throw new HttpsError('invalid-argument', 'industryId and config are required.');
+  const current = await auth.getUser(caller.uid);
+  if (!current.customClaims?.platformAdmin) throw new HttpsError('permission-denied', 'Platform administrator access is required.');
+  const missing = INDUSTRY_POLICY_FIELDS.filter((field) => config[field] === undefined || config[field] === null);
+  if (missing.length) throw new HttpsError('invalid-argument', `Missing policy fields: ${missing.join(', ')}`);
+  await db.doc(`industryConfigs/${industryId}`).set({ ...config, industryId, updatedBy: caller.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true, industryId };
 });
 
 exports.transitionLead = onCall(async (request) => {
   const { tenantId, leadId, status, disposition = null, note = null } = request.data || {};
   const allowed = new Set(['new', 'contacted', 'qualified', 'appointment_scheduled', 'handed_off', 'closed', 'duplicate']);
   if (!allowed.has(status) || typeof leadId !== 'string' || !leadId) throw new HttpsError('invalid-argument', 'A valid leadId and status are required.');
-  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const { caller } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
   const leadRef = db.doc(`tenants/${tenantId}/leads/${leadId}`);
   const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(leadRef);
@@ -285,7 +342,7 @@ exports.transitionLead = onCall(async (request) => {
 exports.appointmentWorkflow = onCall(async (request) => {
   const { tenantId, action, appointmentId, data = {} } = request.data || {};
   if (!['create', 'confirm', 'reschedule', 'cancel', 'attendance'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported appointment action.');
-  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const { caller } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
   const appointments = db.collection(`tenants/${tenantId}/appointments`);
   let result;
   if (action === 'create') {

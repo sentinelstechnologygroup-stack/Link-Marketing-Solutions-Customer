@@ -15,6 +15,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role;
     }
 
+    function agentAssigned(tenantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId))
+        && get(/databases/$(database)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId)).data.status == 'active';
+    }
+
+    function canAccessTenant(tenantId) {
+      return membership(tenantId) || agentAssigned(tenantId);
+    }
+
     function tenantData(tenantId) {
       return request.resource.data.tenantId == tenantId;
     }
@@ -36,7 +46,7 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId} {
-      allow read: if membership(tenantId);
+      allow read: if canAccessTenant(tenantId);
       allow write: if signedIn() && membership(tenantId) && role(tenantId) == 'admin';
 
       match /members/{uid} {
@@ -50,15 +60,15 @@ service cloud.firestore {
       }
 
       match /{collection}/{documentId} {
-        allow read: if membership(tenantId)
+        allow read: if canAccessTenant(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
-          && (staffRole(tenantId) || (role(tenantId) == 'customer' && customerReadable(collection)));
+          && (agentAssigned(tenantId) || (membership(tenantId) && (role(tenantId) in ['admin', 'supervisor', 'auditor'] || (role(tenantId) == 'customer' && customerReadable(collection)))));
         allow create: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
           && tenantData(tenantId)
-          && ((role(tenantId) in ['admin', 'supervisor', 'agent'] && operationalCollection(collection))
+          && ((role(tenantId) in ['admin', 'supervisor'] && operationalCollection(collection))
             || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
             || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
         allow update: if membership(tenantId)
@@ -66,13 +76,22 @@ service cloud.firestore {
           && collection != 'auditLogs'
           && resource.data.tenantId == tenantId
           && tenantData(tenantId)
-          && ((role(tenantId) in ['admin', 'supervisor', 'agent'] && operationalCollection(collection))
+          && ((role(tenantId) in ['admin', 'supervisor'] && operationalCollection(collection))
             || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
             || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
         allow delete: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
           && role(tenantId) == 'admin';
+      }
+    }
+
+    match /agentUsers/{uid} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow write: if false;
+      match /assignments/{tenantId} {
+        allow read: if signedIn() && uid == request.auth.uid;
+        allow write: if false;
       }
     }
 

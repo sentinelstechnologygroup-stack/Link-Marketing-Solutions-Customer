@@ -86,6 +86,28 @@ test('Firestore keeps configuration writes above agent scope', async () => {
   });
 });
 
+test('Firestore grants assigned agent reads only for assigned tenants', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'agentUsers/assigned-agent/assignments/tenant-assigned'), {
+      agentUid: 'assigned-agent', tenantId: 'tenant-assigned', status: 'active', role: 'agent', industry: 'real-estate',
+    });
+    await setDoc(doc(db, 'tenants/tenant-assigned/leads/lead-1'), {
+      tenantId: 'tenant-assigned', firstName: 'Assigned', lastName: 'Lead', status: 'new',
+    });
+    await setDoc(doc(db, 'tenants/tenant-other/leads/lead-2'), {
+      tenantId: 'tenant-other', firstName: 'Other', lastName: 'Lead', status: 'new',
+    });
+  });
+
+  const db = env.authenticatedContext('assigned-agent').firestore();
+  await getDoc(doc(db, 'tenants/tenant-assigned/leads/lead-1'));
+  await assertFails(getDoc(doc(db, 'tenants/tenant-other/leads/lead-2')));
+  await assertFails(setDoc(doc(db, 'agentUsers/assigned-agent/assignments/tenant-other'), {
+    agentUid: 'assigned-agent', tenantId: 'tenant-other', status: 'active', role: 'agent',
+  }));
+});
+
 test('Storage denies unauthenticated and authenticated access', async () => {
   const unauthenticated = env.unauthenticatedContext().storage();
   const authenticated = env.authenticatedContext('customer-a', {
