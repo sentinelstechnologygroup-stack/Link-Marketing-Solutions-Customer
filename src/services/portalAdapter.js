@@ -273,7 +273,13 @@ const getBilling = async () => {
   return request("GET", "/billing");
 };
 const getInvoice = (id) => (isDataFixtureMode() ? delay().then(() => sampleInvoice) : request("GET", `/billing/invoices/${id}`));
-const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : request("POST", "/billing/reviews", data));
+const callTenantFunction = async (name, data) => {
+  if (!isFirebaseMode) return null;
+  const tenantId = await getActiveTenantId();
+  if (!tenantId) throw new PortalApiError(403, "No active tenant membership");
+  return (await httpsCallable(firebaseFunctions, name)({ tenantId, ...data })).data;
+};
+const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : isFirebaseMode ? callTenantFunction("createBillingReview", data) : request("POST", "/billing/reviews", data));
 const getDocuments = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleDocuments);
   if (isFirebaseMode) return getTenantRows("documents");
@@ -285,13 +291,13 @@ const getSupport = async () => {
   if (isFirebaseMode) return getTenantRows("supportRequests");
   return request("GET", "/support");
 };
-const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : request("POST", "/support", data));
+const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : isFirebaseMode ? callTenantFunction("createSupportRequest", data) : request("POST", "/support", data));
 const getNotifications = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleNotifications);
   if (isFirebaseMode) { const user = firebaseAuth.currentUser; const rows = await getTenantRows("notifications"); return rows.filter((item) => !item.recipientUid || item.recipientUid === user?.uid); }
   return request("GET", "/notifications");
 };
-const updateNotifications = (prefs) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, preferences: prefs })) : request("PATCH", "/notifications/preferences", { preferences: prefs }));
+const updateNotifications = (prefs) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, preferences: prefs })) : isFirebaseMode ? callTenantFunction("updateNotificationPreferences", { preferences: prefs }) : request("PATCH", "/notifications/preferences", { preferences: prefs }));
 const getSecurity = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSecurity);
   if (isFirebaseMode) return { mfaEnabled: !!firebaseAuth.currentUser?.multiFactor?.enrolledFactors?.length, sessions: [], trustedDevices: [], recentSignIns: [] };
