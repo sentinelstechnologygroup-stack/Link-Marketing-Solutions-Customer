@@ -108,7 +108,7 @@ async function chooseClientContact(route) {
   return contacts[0] || null;
 }
 
-exports.provisionClient = onCall(async (request) => {
+exports.provisionClient = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = await requireSuperAdmin(request);
   const input = request.data || {};
   const tenantId = safeId(input.tenantSlug || input.clientName, 'tenant');
@@ -203,7 +203,7 @@ exports.ingestWebsiteLead = onRequest({ cors: false, secrets: [ingestionKey], ti
   return response.status(202).json({ accepted: true, leadId: leadRef.id, receivedAt: new Date().toISOString() });
 });
 
-exports.registerTenantAsset = onCall(async (request) => {
+exports.registerTenantAsset = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireCaller(request);
   const input = request.data || {};
   const tenantId = clean(input.tenantId, 120);

@@ -158,7 +158,7 @@ exports.health = onRequest({ cors: false }, (_request, response) => {
   response.status(200).json({ service: 'linkmarketing-backend', status: 'ok' });
 });
 
-exports.getMyProfile = onCall(async (request) => {
+exports.getMyProfile = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   const user = await auth.getUser(caller.uid);
   const [profile, memberships, assignments] = await Promise.all([
@@ -193,7 +193,7 @@ exports.getMyProfile = onCall(async (request) => {
   };
 });
 
-exports.getAccountWorkspace = onCall(async (request) => {
+exports.getAccountWorkspace = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId } = request.data || {};
   const { caller, membership } = await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   const [tenant, members, invitations, audits, profile] = await Promise.all([
@@ -234,7 +234,7 @@ exports.getAccountWorkspace = onCall(async (request) => {
   };
 });
 
-exports.updateMyProfile = onCall(async (request) => {
+exports.updateMyProfile = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   const { displayName = '', phone = '', title = '', timezone = '', locale = 'en-US' } = request.data || {};
   const cleanName = String(displayName).trim();
@@ -247,7 +247,7 @@ exports.updateMyProfile = onCall(async (request) => {
   return { ok: true, profile: { ...profile, updatedAt: undefined } };
 });
 
-exports.getSecurityWorkspace = onCall(async (request) => {
+exports.getSecurityWorkspace = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   const [user, profile, audits] = await Promise.all([
@@ -270,7 +270,7 @@ exports.getSecurityWorkspace = onCall(async (request) => {
   };
 });
 
-exports.updateSecuritySettings = onCall(async (request) => {
+exports.updateSecuritySettings = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   const settings = objectInput(request.data?.settings);
   const idleTimeoutMinutes = Number(settings.idleTimeoutMinutes);
@@ -279,13 +279,13 @@ exports.updateSecuritySettings = onCall(async (request) => {
   return { ok: true, settings: { idleTimeoutMinutes } };
 });
 
-exports.revokeAllSessions = onCall(async (request) => {
+exports.revokeAllSessions = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   await auth.revokeRefreshTokens(caller.uid);
   return { ok: true, revokedAt: new Date().toISOString() };
 });
 
-exports.updateTenantProfile = onCall(async (request) => {
+exports.updateTenantProfile = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, businessProfile } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, TENANT_ADMIN_ROLES);
   const input = objectInput(businessProfile);
@@ -296,7 +296,7 @@ exports.updateTenantProfile = onCall(async (request) => {
   return { ok: true, businessProfile: clean };
 });
 
-exports.updateMemberRole = onCall(async (request) => {
+exports.updateMemberRole = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, uid, role } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, TENANT_ADMIN_ROLES);
   const normalizedRole = normalizeRole(role);
@@ -307,7 +307,7 @@ exports.updateMemberRole = onCall(async (request) => {
   return { ok: true, uid, role: normalizedRole };
 });
 
-exports.setMembershipStatus = onCall(async (request) => {
+exports.setMembershipStatus = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, uid, active } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, TENANT_ADMIN_ROLES);
   if (typeof uid !== 'string' || !uid || typeof active !== 'boolean') throw new HttpsError('invalid-argument', 'A valid member and status are required.');
@@ -317,7 +317,7 @@ exports.setMembershipStatus = onCall(async (request) => {
   return { ok: true, uid, active };
 });
 
-exports.createInvitation = onCall(async (request) => {
+exports.createInvitation = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, email, role, brandIds = [] } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, TENANT_ADMIN_ROLES);
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -331,7 +331,7 @@ exports.createInvitation = onCall(async (request) => {
   return { id: invitation.id, invitationId: invitation.id, email: normalizedEmail, role: normalizedRole, status: 'pending', delivery: 'pending' };
 });
 
-exports.acceptInvitation = onCall(async (request) => {
+exports.acceptInvitation = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   const { tenantId, invitationId, token } = request.data || {};
   if (!tenantId || !invitationId || typeof token !== 'string') throw new HttpsError('invalid-argument', 'tenantId, invitationId, and token are required.');
@@ -351,26 +351,26 @@ exports.acceptInvitation = onCall(async (request) => {
   return { tenantId, uid: caller.uid, role: invitation.role, active: true };
 });
 
-exports.listMyMemberships = onCall(async (request) => {
+exports.listMyMemberships = onCall({ enforceAppCheck: true }, async (request) => {
   const caller = requireAuth(request);
   const memberships = await db.collectionGroup('members').where('uid', '==', caller.uid).where('active', '==', true).get();
   return { memberships: memberships.docs.map((doc) => ({ id: doc.id, ...doc.data() })) };
 });
 
-exports.createSupportRequest = onCall(async (request) => {
+exports.createSupportRequest = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, subject, category = 'general', priority = 'normal', body } = request.data || {};
   if (typeof subject !== 'string' || !subject.trim() || typeof body !== 'string' || !body.trim()) throw new HttpsError('invalid-argument', 'subject and body are required.');
   const caller = requireAuth(request);
   return createTenantRecord({ request, tenantId, collectionName: 'supportRequests', roles: ['client', 'client_admin', 'client_supervisor', 'lms_super_admin'], action: 'support.created', data: { subject: subject.trim(), type: category, category, priority, body: body.trim(), status: 'open', assigned: 'Queued - Link team', thread: [{ fromUid: caller.uid, from: caller.token?.name || caller.token?.email || 'Portal user', body: body.trim(), at: new Date().toISOString() }] } });
 });
 
-exports.createBillingReview = onCall(async (request) => {
+exports.createBillingReview = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, invoiceId, reason, note = '' } = request.data || {};
   if (typeof invoiceId !== 'string' || !invoiceId.trim() || typeof reason !== 'string' || !reason.trim()) throw new HttpsError('invalid-argument', 'invoiceId and reason are required.');
   return createTenantRecord({ request, tenantId, collectionName: 'billingReviews', roles: ['admin', 'supervisor', 'customer'], action: 'billing.review.created', data: { invoiceId: invoiceId.trim(), reason: reason.trim(), note, status: 'submitted' } });
 });
 
-exports.updateNotificationPreferences = onCall(async (request) => {
+exports.updateNotificationPreferences = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, preferences } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor', 'customer']);
   if (!preferences || typeof preferences !== 'object' || Array.isArray(preferences)) throw new HttpsError('invalid-argument', 'preferences must be an object.');
@@ -379,7 +379,7 @@ exports.updateNotificationPreferences = onCall(async (request) => {
   return { ok: true, preferences };
 });
 
-exports.getNotificationWorkspace = onCall(async (request) => {
+exports.getNotificationWorkspace = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   const [preferences, notifications] = await Promise.all([
@@ -392,7 +392,7 @@ exports.getNotificationWorkspace = onCall(async (request) => {
   };
 });
 
-exports.createDocumentMetadata = onCall(async (request) => {
+exports.createDocumentMetadata = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, documentId, name, category, storagePath, contentType, sizeBytes } = request.data || {};
   if (typeof name !== 'string' || !name.trim() || typeof storagePath !== 'string' || !storagePath.startsWith(`tenants/${tenantId}/`)) throw new HttpsError('invalid-argument', 'A tenant-scoped name and storagePath are required.');
   if (typeof documentId !== 'string' || !documentId || !storagePath.startsWith(`tenants/${tenantId}/documents/${documentId}/`)) throw new HttpsError('invalid-argument', 'Document metadata must match its tenant-scoped Storage path.');
@@ -404,7 +404,7 @@ exports.createDocumentMetadata = onCall(async (request) => {
   return { id: documentId, ...record, createdAt: undefined, updatedAt: undefined };
 });
 
-exports.addSupportReply = onCall(async (request) => {
+exports.addSupportReply = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, requestId, body } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   if (typeof requestId !== 'string' || !requestId || typeof body !== 'string' || !body.trim()) throw new HttpsError('invalid-argument', 'A request and reply are required.');
@@ -454,7 +454,7 @@ function averageResponseMinutes(leads) {
   return values.length ? Number((values.reduce((total, value) => total + value, 0) / values.length).toFixed(1)) : 0;
 }
 
-exports.getDashboardWorkspace = onCall(async (request) => {
+exports.getDashboardWorkspace = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId } = request.data || {};
   await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   const [tenant, leadsSnapshot, appointmentsSnapshot] = await Promise.all([
@@ -492,7 +492,7 @@ exports.getDashboardWorkspace = onCall(async (request) => {
   };
 });
 
-exports.getLiveReport = onCall(async (request) => {
+exports.getLiveReport = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, range = null, comparison = null, rangeStart = null, rangeEnd = null } = request.data || {};
   await requireMembership(request, tenantId, ['client', 'client_admin', 'client_supervisor', 'lms_super_admin']);
   const [leadsSnapshot, appointmentsSnapshot] = await Promise.all([
@@ -529,7 +529,7 @@ exports.getLiveReport = onCall(async (request) => {
   };
 });
 
-exports.getAgentCollection = onCall(async (request) => {
+exports.getAgentCollection = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, collectionName, limit: requestedLimit = 200 } = request.data || {};
   await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
   if (!AGENT_COLLECTIONS.has(collectionName)) throw new HttpsError('invalid-argument', 'Collection is not available through the CRM API.');
@@ -538,7 +538,7 @@ exports.getAgentCollection = onCall(async (request) => {
   return { rows: snapshot.docs.map((item) => ({ id: item.id, ...item.data() })) };
 });
 
-exports.createAgentRecord = onCall(async (request) => {
+exports.createAgentRecord = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, collectionName, data } = request.data || {};
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs') throw new HttpsError('invalid-argument', 'Collection is not writable through the CRM API.');
   const roles = writeRolesFor(collectionName);
@@ -549,7 +549,7 @@ exports.createAgentRecord = onCall(async (request) => {
   return createTenantRecord({ request, tenantId, collectionName, roles, authorize: requireAgentAssignment, action: `crm.${collectionName}.created`, data: input });
 });
 
-exports.updateAgentRecord = onCall(async (request) => {
+exports.updateAgentRecord = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, collectionName, recordId, data } = request.data || {};
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs' || typeof recordId !== 'string' || !recordId) throw new HttpsError('invalid-argument', 'A valid writable collection and recordId are required.');
   const roles = writeRolesFor(collectionName);
@@ -564,7 +564,7 @@ exports.updateAgentRecord = onCall(async (request) => {
   return { id: recordId, ...current.data(), ...patch };
 });
 
-exports.createAgentAssignment = onCall(async (request) => {
+exports.createAgentAssignment = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, agentUid, industry, brandId = null, campaignIds = [], sourceIds = [], scope = 'assigned', permissions = [] } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
   if (typeof agentUid !== 'string' || !agentUid || typeof industry !== 'string' || !industry) throw new HttpsError('invalid-argument', 'agentUid and industry are required.');
@@ -581,7 +581,7 @@ exports.createAgentAssignment = onCall(async (request) => {
   return { id: ref.id, ...assignment, status: 'active' };
 });
 
-exports.revokeAgentAssignment = onCall(async (request) => {
+exports.revokeAgentAssignment = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, agentUid, assignmentId } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
   if (typeof agentUid !== 'string' || typeof assignmentId !== 'string') throw new HttpsError('invalid-argument', 'agentUid and assignmentId are required.');
@@ -591,7 +591,7 @@ exports.revokeAgentAssignment = onCall(async (request) => {
   return { ok: true, assignmentId, status: 'revoked' };
 });
 
-exports.setIndustryConfig = onCall(async (request) => {
+exports.setIndustryConfig = onCall({ enforceAppCheck: true }, async (request) => {
   const { industryId, config } = request.data || {};
   const caller = requireAuth(request);
   if (typeof industryId !== 'string' || !industryId || !config || typeof config !== 'object') throw new HttpsError('invalid-argument', 'industryId and config are required.');
@@ -603,7 +603,7 @@ exports.setIndustryConfig = onCall(async (request) => {
   return { ok: true, industryId };
 });
 
-exports.transitionLead = onCall(async (request) => {
+exports.transitionLead = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, leadId, status, disposition = null, note = null } = request.data || {};
   const allowed = new Set(['new', 'contacted', 'qualified', 'appointment_scheduled', 'handed_off', 'closed', 'duplicate']);
   if (!allowed.has(status) || typeof leadId !== 'string' || !leadId) throw new HttpsError('invalid-argument', 'A valid leadId and status are required.');
@@ -622,7 +622,7 @@ exports.transitionLead = onCall(async (request) => {
   return result;
 });
 
-exports.appointmentWorkflow = onCall(async (request) => {
+exports.appointmentWorkflow = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, action, appointmentId, data = {} } = request.data || {};
   if (!['create', 'confirm', 'reschedule', 'cancel', 'attendance'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported appointment action.');
   const { caller } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
@@ -658,7 +658,7 @@ exports.appointmentWorkflow = onCall(async (request) => {
   return result;
 });
 
-exports.communications = onCall(async (request) => {
+exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
   const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
   const { caller } = await requireAgentAssignment(request, tenantId, roles);
