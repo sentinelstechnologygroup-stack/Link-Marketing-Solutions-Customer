@@ -36,6 +36,7 @@ async function main() {
   if (betaUser) {
     batch.set(db.doc(`tenants/${tenantId}/members/${betaUser.uid}`), { uid: betaUser.uid, tenantId, email: betaEmail, role: 'client_admin', active: true, brandIds: [brandId], invitedBy: 'server:beta-bootstrap', createdAt: now, updatedAt: now }, { merge: true });
     batch.set(db.doc(`users/${betaUser.uid}`), { uid: betaUser.uid, email: betaEmail, displayName: 'Golden Cross Beta Admin', updatedAt: now }, { merge: true });
+    batch.set(db.doc(`tenants/${tenantId}/businessOwners/${betaUser.uid}`), { tenantId, brandId, uid: betaUser.uid, memberUid: betaUser.uid, name: 'Golden Cross Beta Admin', email: betaEmail, phone: '', roleType: 'client_contact', status: 'active', routingEligible: true, createdAt: now, updatedAt: now }, { merge: true });
   } else {
     batch.set(db.collection(`tenants/${tenantId}/invitations`).doc('golden-cross-beta-admin'), { tenantId, email: betaEmail, role: 'client_admin', brandIds: [brandId], status: 'pending', note: 'Dedicated beta invitation; demo membership remains unchanged.', invitedBy: 'server:beta-bootstrap', createdAt: now, updatedAt: now }, { merge: true });
   }

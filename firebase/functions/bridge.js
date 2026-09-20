@@ -153,6 +153,7 @@ exports.provisionClient = onCall(async (request) => {
   if (adminUser && !adminUser.disabled) {
     initialAdminUid = adminUser.uid;
     batch.set(db.doc(`tenants/${tenantId}/members/${adminUser.uid}`), { uid: adminUser.uid, tenantId, email: adminEmail, role: 'client_admin', active: true, brandIds: [brandId], invitedBy: caller.uid, createdAt: now, updatedAt: now });
+    batch.set(db.doc(`tenants/${tenantId}/businessOwners/${adminUser.uid}`), { tenantId, brandId, uid: adminUser.uid, memberUid: adminUser.uid, name: clean(adminUser.displayName || `${brandName} administrator`, 200), email: adminEmail, phone: '', roleType: 'client_contact', status: 'active', routingEligible: true, createdAt: now, updatedAt: now });
   } else {
     const invitationRef = db.collection(`tenants/${tenantId}/invitations`).doc();
     batch.set(invitationRef, { tenantId, email: adminEmail, role: 'client_admin', brandIds: [brandId], status: 'pending', invitedBy: caller.uid, createdAt: now, updatedAt: now });
