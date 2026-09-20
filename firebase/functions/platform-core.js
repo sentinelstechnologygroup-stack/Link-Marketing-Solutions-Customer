@@ -661,7 +661,7 @@ exports.appointmentWorkflow = onCall(async (request) => {
 exports.communications = onCall(async (request) => {
   const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
   const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
-  const { caller } = await requireMembership(request, tenantId, roles);
+  const { caller } = await requireAgentAssignment(request, tenantId, roles);
   if (!['health_check', 'start_call', 'end_call', 'hold_call', 'resume_call', 'warm_transfer'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported communications action.');
   if (action === 'health_check') return { ok: true, configured: twilioConfigured(), provider: 'twilio', actorUid: caller.uid };
   const callSid = typeof params.callId === 'string' ? params.callId : '';
