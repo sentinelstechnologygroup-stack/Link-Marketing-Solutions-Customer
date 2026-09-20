@@ -51,11 +51,11 @@ All three web apps are registered with domain-restricted reCAPTCHA Enterprise
 providers. Portal clients initialize App Check and automatically refresh tokens
 when their application-specific site key is present.
 
-Enforcement must be enabled only after production App Check metrics confirm that
-legitimate desktop and mobile sessions are receiving valid tokens. This staged
-rollout prevents a security change from locking out real users. The Website's
-current lead flow remains server-to-server and is protected by route credentials,
-origin checks, rate limiting, consent validation, and server-side tenant routing.
+Production monitoring confirmed valid attestation from both Customer and Agent
+browser sessions. Baseline App Check enforcement is enabled for Authentication,
+Firestore, Storage, and every callable Function. The Website's current lead flow
+remains server-to-server and is protected by route credentials, origin checks,
+rate limiting, consent validation, and server-side tenant routing.
 
 ## Reserved projects
 
