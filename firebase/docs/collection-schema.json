@@ -4,7 +4,9 @@
     "customerAccess": "active tenants/{tenantId}/members/{uid} membership",
     "agentAccess": "active agentUsers/{uid}/assignments/{tenantId} assignment",
     "assignmentSource": "agentAssignments/{assignmentId}",
-    "clientControlledTenantFields": false
+    "clientControlledTenantFields": false,
+    "brandAccess": "agent assignment brandId or brandIds must include the record Brand",
+    "ingestionOwnership": "server-owned ingestionRoutes/{routeKey}; browser ownership fields are ignored"
   },
   "requiredTenantFields": ["tenantId", "createdAt", "updatedAt"],
   "collections": {
@@ -12,7 +14,7 @@
     "brands": ["name", "status", "domain"],
     "campaigns": ["name", "brandId", "status", "startDate", "endDate"],
     "leadSources": ["name", "type", "status"],
-    "leads": ["firstName", "lastName", "email", "phone", "status", "sourceId", "brandId", "assignedTo"],
+    "leads": ["firstName", "lastName", "email", "phone", "status", "tenantId", "industryId", "sourceId", "campaignId", "brandId", "routingProfileId", "consentPolicyId", "retentionPolicyId", "assignedTo", "receivedAt"],
     "followUpTasks": ["leadId", "assignedTo", "status", "dueAt"],
     "communicationAlerts": ["leadId", "channel", "status", "sentAt"],
     "callRecords": ["leadId", "agentUid", "status", "startedAt", "endedAt"],
@@ -36,7 +38,12 @@
     "documents": "tenants/{tenantId}/documents/{documentId}/{fileName}",
     "reports": "tenants/{tenantId}/reports/{reportId}/{fileName}",
     "recordings": "tenants/{tenantId}/recordings/{callId}/{fileName}",
-    "exports": "tenants/{tenantId}/exports/{exportId}/{fileName}"
+    "brandDocuments": "tenants/{tenantId}/brands/{brandId}/documents/{documentId}/{fileName}",
+    "brandReports": "tenants/{tenantId}/brands/{brandId}/reports/{reportId}/{fileName}",
+    "brandRecordings": "tenants/{tenantId}/brands/{brandId}/recordings/{callId}/{fileName}",
+    "exports": "tenants/{tenantId}/brands/{brandId}/exports/{exportId}/{fileName}",
+    "invoices": "tenants/{tenantId}/brands/{brandId}/invoices/{invoiceId}/{fileName}",
+    "customerUploads": "tenants/{tenantId}/brands/{brandId}/uploads/{documentId}/{fileName}"
   },
   "industryPolicies": {
     "required": ["industryId", "workflowVersion", "scriptSetId", "qualificationFormId", "routingProfileId", "consentPolicyId", "retentionPolicyId"],

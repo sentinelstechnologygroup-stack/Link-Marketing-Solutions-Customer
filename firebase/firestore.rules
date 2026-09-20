@@ -25,6 +25,15 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId)).data.status == 'active';
     }
 
+    function agentBrandAllowed(tenantId) {
+      let assignment = get(/databases/$(database)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId)).data;
+      return !('brandId' in resource.data)
+        || !('brandId' in assignment)
+        || assignment.brandId == null
+        || resource.data.brandId == assignment.brandId
+        || (('brandIds' in assignment) && assignment.brandIds.hasAny([resource.data.brandId]));
+    }
+
     function canAccessTenant(tenantId) {
       return lmsSuperAdmin() || membership(tenantId) || agentAssigned(tenantId);
     }
@@ -59,7 +68,7 @@ service cloud.firestore {
       }
 
       match /auditLogs/{auditId} {
-        allow read: if membership(tenantId);
+        allow read: if lmsSuperAdmin() || membership(tenantId) || agentAssigned(tenantId);
         allow write: if false;
       }
 
@@ -67,6 +76,7 @@ service cloud.firestore {
         allow read: if canAccessTenant(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
+          && (!agentAssigned(tenantId) || lmsSuperAdmin() || membership(tenantId) || agentBrandAllowed(tenantId))
           && (lmsSuperAdmin() || agentAssigned(tenantId) || (membership(tenantId) && (role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor', 'auditor'] || (role(tenantId) in ['customer', 'client'] && customerReadable(collection)))));
         allow create: if membership(tenantId)
           && collection != 'members'

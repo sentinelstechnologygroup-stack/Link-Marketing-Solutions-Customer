@@ -109,6 +109,31 @@ test('Firestore grants assigned agent reads only for assigned tenants', async ()
   }));
 });
 
+test('Firestore limits Brand-assigned agents inside an assigned tenant', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'agentUsers/brand-agent/assignments/tenant-brand'), {
+      agentUid: 'brand-agent', tenantId: 'tenant-brand', status: 'active', role: 'agent', brandId: 'brand-a', brandIds: ['brand-a'],
+    });
+    await setDoc(doc(db, 'tenants/tenant-brand/leads/lead-a'), { tenantId: 'tenant-brand', brandId: 'brand-a', status: 'new' });
+    await setDoc(doc(db, 'tenants/tenant-brand/leads/lead-b'), { tenantId: 'tenant-brand', brandId: 'brand-b', status: 'new' });
+  });
+  const db = env.authenticatedContext('brand-agent').firestore();
+  await assertSucceeds(getDoc(doc(db, 'tenants/tenant-brand/leads/lead-a')));
+  await assertFails(getDoc(doc(db, 'tenants/tenant-brand/leads/lead-b')));
+});
+
+test('browser-supplied tenant ownership cannot grant direct lead writes', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'agentUsers/browser-agent/assignments/tenant-owned'), {
+      agentUid: 'browser-agent', tenantId: 'tenant-owned', status: 'active', role: 'agent', brandId: 'brand-owned',
+    });
+  });
+  const db = env.authenticatedContext('browser-agent').firestore();
+  await assertFails(setDoc(doc(db, 'tenants/tenant-other/leads/forged'), { tenantId: 'tenant-other', brandId: 'brand-other', status: 'new' }));
+  await assertFails(setDoc(doc(db, 'tenants/tenant-owned/leads/forged'), { tenantId: 'tenant-owned', brandId: 'brand-owned', status: 'new' }));
+});
+
 test('client, client supervisor, and client admin stay inside their tenant', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
@@ -160,4 +185,17 @@ test('Storage permits validated files only within the active member tenant', asy
   await assertSucceeds(uploadBytes(ref(storage, 'tenants/tenant-storage/documents/doc-1/readme.txt'), bytes, { contentType: 'text/plain' }));
   await assertFails(uploadBytes(ref(storage, 'tenants/other/documents/doc-2/readme.txt'), bytes, { contentType: 'text/plain' }));
   await assertFails(uploadBytes(ref(storage, 'tenants/tenant-storage/documents/doc-3/file.exe'), bytes, { contentType: 'application/x-msdownload' }));
+});
+
+test('Storage limits assigned agents to their Brand path', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'agentUsers/storage-agent/assignments/tenant-storage-brand'), {
+      agentUid: 'storage-agent', tenantId: 'tenant-storage-brand', status: 'active', role: 'agent', brandId: 'brand-a', brandIds: ['brand-a'],
+    });
+  });
+  const storage = env.authenticatedContext('storage-agent').storage();
+  const bytes = new Uint8Array([76, 77, 83]);
+  await assertSucceeds(uploadBytes(ref(storage, 'tenants/tenant-storage-brand/brands/brand-a/recordings/call-a.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/tenant-storage-brand/brands/brand-b/recordings/call-b.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/tenant-storage-brand/documents/legacy.txt'), bytes, { contentType: 'text/plain' }));
 });

@@ -17,11 +17,29 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId)).data.status == 'active';
     }
 
+    function assignedBrand(tenantId, brandId) {
+      let assignment = firestore.get(/databases/(default)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId)).data;
+      return assignedAgent(tenantId)
+        && ((!('brandId' in assignment)) || assignment.brandId == null || assignment.brandId == brandId
+          || (('brandIds' in assignment) && assignment.brandIds.hasAny([brandId])));
+    }
+
+    function supportedFile() {
+      return request.resource != null
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/.*|audio/.*|video/mp4|text/.*|application/json|application/zip|application/msword|application/vnd.ms-excel|application/vnd.openxmlformats-officedocument.*');
+    }
+
+    match /tenants/{tenantId}/brands/{brandId}/{allPaths=**} {
+      allow read: if lmsSuperAdmin() || member(tenantId) || assignedBrand(tenantId, brandId);
+      allow create, update: if (lmsSuperAdmin() || member(tenantId) || assignedBrand(tenantId, brandId)) && supportedFile();
+      allow delete: if lmsSuperAdmin() || member(tenantId);
+    }
+
     match /tenants/{tenantId}/{allPaths=**} {
-      allow read: if lmsSuperAdmin() || member(tenantId) || assignedAgent(tenantId);
-      allow write: if (lmsSuperAdmin() || member(tenantId) || assignedAgent(tenantId))
-        && request.resource.size < 25 * 1024 * 1024
-        && request.resource.contentType.matches('application/pdf|image/.*|text/.*|application/vnd.openxmlformats-officedocument.*');
+      allow read: if lmsSuperAdmin() || member(tenantId);
+      allow create, update: if (lmsSuperAdmin() || member(tenantId)) && supportedFile();
+      allow delete: if lmsSuperAdmin() || member(tenantId);
     }
 
     match /{allPaths=**} { allow read, write: if false; }

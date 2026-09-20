@@ -4,11 +4,11 @@ import BrandLogo from './BrandLogo';
 
 const CUSTOMER_PORTAL_SIGN_IN =
   import.meta.env.VITE_CUSTOMER_PORTAL_SIGN_IN_URL ||
-  'https://customer.linkmarketingservices.com/login';
+  'https://customer.linkmarketingservices.co/login';
 
 const AGENT_PORTAL_SIGN_IN =
   import.meta.env.VITE_AGENT_PORTAL_SIGN_IN_URL ||
-  'https://agent.linkmarketingservices.com/login';
+  'https://agent.linkmarketingservices.co/login';
 
 const COLS = [
   {

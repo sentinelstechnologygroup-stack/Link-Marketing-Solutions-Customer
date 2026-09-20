@@ -31,7 +31,7 @@ const AGENT_COLLECTIONS = new Set([
   'organizations', 'brands', 'campaigns', 'leadSources', 'leads', 'followUpTasks',
   'communicationAlerts', 'callRecords', 'callTranscripts', 'callQualityReviews',
   'appointments', 'businessOwners', 'scripts', 'qualificationForms', 'routingRules',
-  'phoneNumbers', 'reports', 'auditLogs',
+  'phoneNumbers', 'reports', 'documents', 'invoices', 'notifications', 'customerActivity', 'auditLogs',
 ]);
 const AGENT_WRITE_COLLECTIONS = new Set([
   'leads', 'followUpTasks', 'communicationAlerts', 'callRecords', 'callTranscripts',
@@ -53,7 +53,7 @@ const REQUIRED_FIELDS = {
   callTranscripts: ['callId', 'storagePath', 'status'],
   callQualityReviews: ['callId', 'reviewerUid', 'score', 'status'],
   appointments: ['leadId', 'title', 'scheduledStart', 'scheduledEnd', 'status', 'calendarProvider'],
-  businessOwners: ['leadId', 'name', 'email', 'phone'],
+  businessOwners: ['name'],
   scripts: ['name', 'status', 'body', 'version'],
   qualificationForms: ['name', 'status', 'fields', 'version'],
   routingRules: ['name', 'status', 'priority', 'conditions', 'destination'],
@@ -161,8 +161,23 @@ exports.health = onRequest({ cors: false }, (_request, response) => {
 exports.getMyProfile = onCall(async (request) => {
   const caller = requireAuth(request);
   const user = await auth.getUser(caller.uid);
-  const profile = await db.doc(`users/${caller.uid}`).get();
-  const memberships = await db.collectionGroup('members').where('uid', '==', caller.uid).where('active', '==', true).get();
+  const [profile, memberships, assignments] = await Promise.all([
+    db.doc(`users/${caller.uid}`).get(),
+    db.collectionGroup('members').where('uid', '==', caller.uid).where('active', '==', true).get(),
+    db.collection(`agentUsers/${caller.uid}/assignments`).where('status', '==', 'active').get(),
+  ]);
+  const agentAssignments = await Promise.all(assignments.docs.map(async (assignmentDoc) => {
+    const assignment = assignmentDoc.data();
+    const tenant = await db.doc(`tenants/${assignment.tenantId || assignmentDoc.id}`).get();
+    return {
+      id: assignmentDoc.id,
+      ...assignment,
+      tenantId: assignment.tenantId || assignmentDoc.id,
+      tenantName: tenant.data()?.name || assignment.tenantName || assignment.tenantId || assignmentDoc.id,
+      tenantStatus: tenant.data()?.status || 'active',
+      industry: assignment.industry || tenant.data()?.industry || tenant.data()?.vertical || 'general',
+    };
+  }));
   return {
     uid: user.uid,
     email: user.email || null,
@@ -174,6 +189,7 @@ exports.getMyProfile = onCall(async (request) => {
     disabled: user.disabled,
     lmsSuperAdmin: caller.token?.lmsSuperAdmin === true,
     memberships: memberships.docs.map((doc) => ({ id: doc.id, ...doc.data(), role: normalizeRole(doc.data().role) })),
+    agentAssignments,
   };
 });
 
@@ -677,3 +693,5 @@ exports.twilioWebhook = onRequest({ cors: false }, async (request, response) => 
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return response.status(403).send('Invalid signature');
   response.type('text/xml').send('<Response><Say>Link Marketing Services call connected.</Say></Response>');
 });
+
+Object.assign(exports, require('./bridge'));

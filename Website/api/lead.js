@@ -19,7 +19,7 @@ function requestIp(req) {
 function isAllowedOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
-  const configured = (process.env.ALLOWED_ORIGINS || 'https://linkmarketingservices.com,https://www.linkmarketingservices.com')
+  const configured = (process.env.ALLOWED_ORIGINS || 'https://linkmarketingservices.com,https://www.linkmarketingservices.com,https://linkmarketingservices.co,https://www.linkmarketingservices.co')
     .split(',').map((item) => item.trim()).filter(Boolean);
   if (configured.includes(origin)) return true;
   return process.env.VERCEL_ENV !== 'production' && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
@@ -96,6 +96,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-LMS-Route-Key': process.env.LEAD_ROUTE_KEY || 'lms-website',
         ...(process.env.LEAD_WEBHOOK_TOKEN ? { Authorization: `Bearer ${process.env.LEAD_WEBHOOK_TOKEN}` } : {}),
       },
       body: JSON.stringify(lead),
