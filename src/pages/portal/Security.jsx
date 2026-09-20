@@ -11,8 +11,10 @@ import EmptyState from "@/components/portal/EmptyState";
 import { fmtDateTime, relativeTime } from "@/lib/portalUtils";
 
 export default function Security() {
-  const { data, loading, error, retry } = usePortalData(() => portalAdapter.getSecurity(), []);
+  const { data, loading, error, retry, setData } = usePortalData(() => portalAdapter.getSecurity(), []);
   const [showCodes, setShowCodes] = useState(false);
+  const [message, setMessage] = useState("");
+  const [timeout, setTimeoutValue] = useState(30);
 
   if (loading) return <div><PageHeader title="Security" /><div className="grid grid-cols-1 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div></div>;
   if (error) return <ErrorState error={error} onRetry={retry} />;
@@ -23,6 +25,7 @@ export default function Security() {
   return (
     <div>
       <PageHeader title="Security" description="Manage authentication, sessions, devices, and security events. Sensitive changes require recent authentication or MFA step-up." />
+      {message && <div role="status" className="mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ background: "var(--teal-soft)", color: "var(--shell)" }}>{message}</div>}
 
       {/* Security score */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -39,7 +42,7 @@ export default function Security() {
         <div className="portal-card p-5 lg:col-span-2 flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 shrink-0" style={{ color: "var(--teal)" }} />
           <p className="text-[13px]" style={{ color: "var(--ink-2)" }}>Idle-session timeout is set to <strong>{data.idleTimeoutMinutes} minutes</strong>. Sessions expire automatically and rotate on privilege changes.</p>
-          <GhostButton className="ml-auto" onClick={() => alert("Step-up authentication required for this change. (preview)")}>Change timeout</GhostButton>
+          <div className="ml-auto flex items-center gap-2"><select aria-label="Idle-session timeout" value={timeout || data.idleTimeoutMinutes} onChange={(event) => setTimeoutValue(Number(event.target.value))} className="touch-target rounded-lg px-2 text-[13px] bg-white border focus-ring" style={{ borderColor: "var(--line)" }}>{[15, 30, 60, 120].map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select><GhostButton onClick={async () => { const value = timeout || data.idleTimeoutMinutes; await portalAdapter.updateSecuritySettings({ idleTimeoutMinutes: value }); setData((current) => ({ ...current, idleTimeoutMinutes: value })); setMessage("Security settings saved."); }}>Save</GhostButton></div>
         </div>
       </div>
 
@@ -58,7 +61,7 @@ export default function Security() {
               );
             })}
           </ul>
-          <div className="mt-3 flex gap-2"><GhostButton onClick={() => alert("MFA step-up required. (preview)")}><Plus className="w-4 h-4" /> Add method</GhostButton><GhostButton onClick={() => alert("MFA step-up required. (preview)")}>Manage</GhostButton></div>
+          <div className="mt-3 flex gap-2"><GhostButton disabled title="MFA enrollment is completed during secure sign-in setup."><Plus className="w-4 h-4" /> Add method</GhostButton><GhostButton disabled title="MFA enrollment is completed during secure sign-in setup.">Manage</GhostButton></div>
         </SectionCard>
 
         <SectionCard title="Recovery codes" subtitle="Store these securely. Each code is single-use.">
@@ -76,7 +79,7 @@ export default function Security() {
 
       {/* Sessions */}
       <div className="mt-4">
-        <SectionCard title="Active sessions & trusted devices" action={<PrimaryButton onClick={() => alert("Sign out of all devices. (preview)")}><LogOut className="w-4 h-4" /> Sign out all</PrimaryButton>}>
+        <SectionCard title="Active sessions & trusted devices" action={<PrimaryButton onClick={async () => { await portalAdapter.revokeAllSessions(); setMessage("All refresh sessions were revoked. Sign in again on other devices."); }}><LogOut className="w-4 h-4" /> Sign out all</PrimaryButton>}>
           <ul className="space-y-3">
             {data.sessions.map((s) => (
               <li key={s.id} className="flex items-center gap-3 p-3 rounded-lg border" style={{ borderColor: "var(--line-2)" }}>
@@ -118,7 +121,7 @@ export default function Security() {
             ))}
           </ul>
           <div className="mt-4 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: "var(--line-2)" }}>
-            <GhostButton onClick={() => alert("Password change requires recent authentication. (preview)")}><KeyRound className="w-4 h-4" /> Change password</GhostButton>
+            <GhostButton onClick={async () => { await portalAdapter.requestCurrentPasswordReset(); setMessage("A secure password-reset email has been sent."); }}><KeyRound className="w-4 h-4" /> Change password</GhostButton>
             <GhostButton onClick={() => alert("Report suspicious activity to the Link security team. (preview)")}><AlertTriangle className="w-4 h-4" /> Report suspicious activity</GhostButton>
           </div>
         </SectionCard>

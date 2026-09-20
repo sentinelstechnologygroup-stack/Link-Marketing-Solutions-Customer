@@ -79,7 +79,7 @@ export default function Support() {
               )}
 
               {active.status !== "Resolved" && (
-                <form onSubmit={(e) => { e.preventDefault(); if (!reply.trim()) return; const msg = { at: new Date().toISOString(), from: "Alex Morgan", body: reply }; setData((d) => ({ requests: d.requests.map((r) => r.id === active.id ? { ...r, thread: [...r.thread, msg], updated: new Date().toISOString().slice(0, 10) } : r) })); setReply(""); }} className="mt-5 flex gap-2 items-end">
+                <form onSubmit={async (e) => { e.preventDefault(); if (!reply.trim()) return; const body = reply.trim(); const result = await portalAdapter.addSupportReply(active.id, body); const msg = result?.message || { at: new Date().toISOString(), from: "Portal user", body }; setData((d) => ({ requests: d.requests.map((r) => r.id === active.id ? { ...r, thread: [...(r.thread || []), msg], updated: new Date().toISOString().slice(0, 10) } : r) })); setReply(""); }} className="mt-5 flex gap-2 items-end">
                   <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} placeholder="Reply…" className="flex-1 touch-target rounded-lg px-3 py-2.5 text-[13px] bg-white border focus-ring resize-none" style={{ borderColor: "var(--line)" }} />
                   <button type="submit" className="touch-target px-4 rounded-lg text-[13px] font-semibold text-white focus-ring" style={{ background: "var(--shell)" }}><MessageSquare className="w-4 h-4" /></button>
                 </form>

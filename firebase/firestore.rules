@@ -5,6 +5,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function lmsSuperAdmin() {
+      return signedIn() && request.auth.token.lmsSuperAdmin == true;
+    }
+
     function membership(tenantId) {
       return signedIn()
         && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid))
@@ -22,7 +26,7 @@ service cloud.firestore {
     }
 
     function canAccessTenant(tenantId) {
-      return membership(tenantId) || agentAssigned(tenantId);
+      return lmsSuperAdmin() || membership(tenantId) || agentAssigned(tenantId);
     }
 
     function tenantData(tenantId) {
@@ -34,7 +38,7 @@ service cloud.firestore {
     }
 
     function staffRole(tenantId) {
-      return role(tenantId) in ['admin', 'supervisor', 'agent', 'auditor'];
+      return lmsSuperAdmin() || role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor', 'agent', 'auditor'];
     }
 
     function operationalCollection(collection) {
@@ -47,10 +51,10 @@ service cloud.firestore {
 
     match /tenants/{tenantId} {
       allow read: if canAccessTenant(tenantId);
-      allow write: if signedIn() && membership(tenantId) && role(tenantId) == 'admin';
+      allow write: if lmsSuperAdmin() || (membership(tenantId) && role(tenantId) in ['admin', 'client_admin']);
 
       match /members/{uid} {
-        allow read: if membership(tenantId) && (uid == request.auth.uid || role(tenantId) == 'admin');
+        allow read: if lmsSuperAdmin() || (membership(tenantId) && (uid == request.auth.uid || role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor']));
         allow write: if false;
       }
 
@@ -63,27 +67,32 @@ service cloud.firestore {
         allow read: if canAccessTenant(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
-          && (agentAssigned(tenantId) || (membership(tenantId) && (role(tenantId) in ['admin', 'supervisor', 'auditor'] || (role(tenantId) == 'customer' && customerReadable(collection)))));
+          && (lmsSuperAdmin() || agentAssigned(tenantId) || (membership(tenantId) && (role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor', 'auditor'] || (role(tenantId) in ['customer', 'client'] && customerReadable(collection)))));
         allow create: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
           && tenantData(tenantId)
-          && ((role(tenantId) in ['admin', 'supervisor'] && operationalCollection(collection))
-            || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
-            || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
+          && ((role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor'] && operationalCollection(collection))
+            || (role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor'] && configurationCollection(collection))
+            || (role(tenantId) in ['admin', 'client_admin'] && collection in ['support', 'documents']));
         allow update: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
           && resource.data.tenantId == tenantId
           && tenantData(tenantId)
-          && ((role(tenantId) in ['admin', 'supervisor'] && operationalCollection(collection))
-            || (role(tenantId) in ['admin', 'supervisor'] && configurationCollection(collection))
-            || (role(tenantId) == 'admin' && collection in ['support', 'documents']));
+          && ((role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor'] && operationalCollection(collection))
+            || (role(tenantId) in ['admin', 'supervisor', 'client_admin', 'client_supervisor'] && configurationCollection(collection))
+            || (role(tenantId) in ['admin', 'client_admin'] && collection in ['support', 'documents']));
         allow delete: if membership(tenantId)
           && collection != 'members'
           && collection != 'auditLogs'
-          && role(tenantId) == 'admin';
+          && role(tenantId) in ['admin', 'client_admin'];
       }
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (uid == request.auth.uid || lmsSuperAdmin());
+      allow write: if false;
     }
 
     match /agentUsers/{uid} {

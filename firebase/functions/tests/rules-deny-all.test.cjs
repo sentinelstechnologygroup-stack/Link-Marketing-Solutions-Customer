@@ -4,6 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const {
   assertFails,
+  assertSucceeds,
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 const { doc, getDoc, setDoc } = require('firebase/firestore');
@@ -14,7 +15,7 @@ let env;
 
 test.before(async () => {
   env = await initializeTestEnvironment({
-    projectId: 'demo-linkmarketing-rules-test',
+    projectId: 'demo-linkmarketing-local',
     firestore: {
       rules: fs.readFileSync(path.join(rulesDir, 'firestore.rules'), 'utf8'),
     },
@@ -108,6 +109,33 @@ test('Firestore grants assigned agent reads only for assigned tenants', async ()
   }));
 });
 
+test('client, client supervisor, and client admin stay inside their tenant', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    for (const [uid, role] of [['client-user', 'client'], ['client-supervisor', 'client_supervisor'], ['client-admin', 'client_admin']]) {
+      await setDoc(doc(db, `tenants/tenant-role/members/${uid}`), { uid, tenantId: 'tenant-role', role, active: true });
+    }
+    await setDoc(doc(db, 'tenants/tenant-role/leads/lead-role'), { tenantId: 'tenant-role', status: 'new' });
+    await setDoc(doc(db, 'tenants/tenant-private/leads/lead-private'), { tenantId: 'tenant-private', status: 'new' });
+  });
+
+  for (const uid of ['client-user', 'client-supervisor', 'client-admin']) {
+    const db = env.authenticatedContext(uid).firestore();
+    await assertSucceeds(getDoc(doc(db, 'tenants/tenant-role/leads/lead-role')));
+    await assertFails(getDoc(doc(db, 'tenants/tenant-private/leads/lead-private')));
+  }
+});
+
+test('LMS super admin claim can audit tenants but cannot be granted from tenant data', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'tenants/tenant-super/reports/report-super'), { tenantId: 'tenant-super', createdAt: '2026-01-01', updatedAt: '2026-01-01' });
+  });
+  const privileged = env.authenticatedContext('lms-admin', { lmsSuperAdmin: true }).firestore();
+  await assertSucceeds(getDoc(doc(privileged, 'tenants/tenant-super/reports/report-super')));
+  const unprivileged = env.authenticatedContext('fake-lms-admin', { role: 'lms_super_admin' }).firestore();
+  await assertFails(getDoc(doc(unprivileged, 'tenants/tenant-super/reports/report-super')));
+});
+
 test('Storage denies unauthenticated and authenticated access', async () => {
   const unauthenticated = env.unauthenticatedContext().storage();
   const authenticated = env.authenticatedContext('customer-a', {
@@ -119,4 +147,17 @@ test('Storage denies unauthenticated and authenticated access', async () => {
   await assertFails(uploadBytes(ref(unauthenticated, 'tenants/tenant-a/evidence/a.txt'), bytes));
   await assertFails(uploadBytes(ref(authenticated, 'tenants/tenant-b/evidence/b.txt'), bytes));
   await assertFails(getBytes(ref(authenticated, 'tenants/tenant-a/evidence/a.txt')));
+});
+
+test('Storage permits validated files only within the active member tenant', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'tenants/tenant-storage/members/storage-client'), {
+      uid: 'storage-client', tenantId: 'tenant-storage', role: 'client', active: true,
+    });
+  });
+  const storage = env.authenticatedContext('storage-client').storage();
+  const bytes = new Uint8Array([76, 77, 83]);
+  await assertSucceeds(uploadBytes(ref(storage, 'tenants/tenant-storage/documents/doc-1/readme.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/other/documents/doc-2/readme.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/tenant-storage/documents/doc-3/file.exe'), bytes, { contentType: 'application/x-msdownload' }));
 });

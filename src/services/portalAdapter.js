@@ -57,7 +57,6 @@ export const isFixtureDataMode = PREVIEW_DATA_ENABLED || UI_FIXTURES_ENABLED;
 export const isFirebaseMode = firebaseConfigured && !API_URL;
 const DEMO_TENANT_IDS = new Set([
   "tenant-lms-realtor-demo",
-  "tenant-golden-cross-demo",
 ]);
 let activeTenantId = null;
 
@@ -127,6 +126,32 @@ const normalizeReports = (value) => {
   normalized.metrics = Object.fromEntries(Object.entries(normalized.metrics).map(([key, metric]) => [key, typeof metric === "number" ? { value: metric, change: 0 } : { value: metric?.value ?? 0, change: metric?.change ?? 0 }]));
   return normalized;
 };
+const asIso = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+};
+const normalizeLeadRow = (row) => ({
+  ...row,
+  name: row.name || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || "Unnamed lead",
+  source: row.source || row.sourceName || row.sourceId || "—",
+  campaign: row.campaign || row.campaignName || row.campaignId || "—",
+  service: row.service || row.serviceName || row.industry || row.industryId || "—",
+  location: row.location || row.market || row.city || "—",
+  stage: row.stage || row.status || "New",
+  qualification: row.qualification || row.qualificationStatus || "In progress",
+  handoffType: row.handoffType || row.handoff || "None",
+  disposition: row.disposition || "Open",
+  received: asIso(row.received || row.receivedAt || row.createdAt),
+  rep: row.rep || row.assignedToName || row.assignedTo || "Unassigned",
+});
+const normalizeAppointmentRow = (row) => {
+  const status = String(row.attendance || row.status || "upcoming").toLowerCase();
+  return { ...row, prospect: row.prospect || row.leadName || row.title || "Appointment", when: asIso(row.when || row.scheduledStart || row.startAt), type: row.type || row.title || "Appointment", salesperson: row.salesperson || row.assignedToName || row.assignedTo || "Unassigned", confirmation: row.confirmation || (status === "confirmed" ? "Confirmed" : "Pending"), attendance: row.attendance || (['completed', 'show', 'no-show', 'cancelled', 'canceled'].includes(status) ? (status === 'completed' ? 'Show' : status === 'no-show' ? 'No-show' : status) : 'Upcoming'), acceptance: row.acceptance || "Pending", reschedule: row.reschedule || "None" };
+};
+const normalizeDocumentRow = (row) => ({ ...row, uploaded: asIso(row.uploaded || row.createdAt), updated: asIso(row.updated || row.updatedAt || row.createdAt), uploadedBy: row.uploadedBy || row.createdBy || "Portal user", size: row.size ?? row.sizeBytes ?? 0, access: row.access || "Tenant members", version: row.version || "1.0" });
+const normalizeSupportRow = (row) => ({ ...row, type: row.type || row.category || "General", priority: row.priority || "Normal", status: row.status ? `${row.status.charAt(0).toUpperCase()}${row.status.slice(1)}` : "Open", assigned: row.assigned || "Queued - Link team", created: asIso(row.created || row.createdAt), updated: asIso(row.updated || row.updatedAt || row.createdAt), thread: Array.isArray(row.thread) ? row.thread : [] });
 
 async function getActiveTenantId() {
   const session = await getSession();
@@ -183,6 +208,7 @@ async function getSession() {
   // A configured production API still requires its real secure session and MFA.
   if (isPreviewOrBypassMode()) { await delay(120); return sampleSession; }
   if (isFirebaseMode) {
+    if (typeof firebaseAuth.authStateReady === "function") await firebaseAuth.authStateReady();
     const user = firebaseAuth.currentUser;
     if (!user) return null;
     const profile = await httpsCallable(firebaseFunctions, "getMyProfile")();
@@ -243,27 +269,10 @@ async function completeRecovery({ token, password }) {
 const getDashboard = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleDashboard);
   if (isFirebaseMode) {
-    const session = await getSession();
-    const tenantId = session?.memberships?.[0]?.tenantId;
+    const tenantId = await getActiveTenantId();
     if (!tenantId) return null;
-    const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/dashboard/summary`));
-    return normalizeDashboard(snapshot.exists() ? snapshot.data() : null);
-  }
-  if (isFirebaseMode) {
-    return getTenantRows("leads").then((sourceRows) => {
-      let rows = sourceRows || [];
-      const { search, source, campaign, service, stage, qualification, handoff, disposition, rep } = params;
-      if (search) { const q = search.toLowerCase(); rows = rows.filter((r) => [r.name, r.email, r.phone, r.campaign, r.location].filter(Boolean).join(" ").toLowerCase().includes(q)); }
-      if (source && source !== "all") rows = rows.filter((r) => r.source === source);
-      if (campaign && campaign !== "all") rows = rows.filter((r) => r.campaign === campaign);
-      if (service && service !== "all") rows = rows.filter((r) => r.service === service);
-      if (stage && stage !== "all") rows = rows.filter((r) => r.stage === stage);
-      if (qualification && qualification !== "all") rows = rows.filter((r) => r.qualification === qualification);
-      if (handoff && handoff !== "all") rows = rows.filter((r) => (r.handoffType || "None") === handoff);
-      if (disposition && disposition !== "all") rows = rows.filter((r) => (r.disposition || "").startsWith(disposition));
-      if (rep && rep !== "all") rows = rows.filter((r) => r.rep === rep);
-      return { total: rows.length, rows };
-    });
+    const response = await httpsCallable(firebaseFunctions, "getDashboardWorkspace")({ tenantId });
+    return normalizeDashboard(response.data);
   }
   return request("GET", "/dashboard");
 };
@@ -288,23 +297,39 @@ function getLeads(params = {}) {
       return { total: rows.length, rows };
     });
   }
+  if (isFirebaseMode) {
+    return getTenantRows("leads").then((sourceRows) => {
+      let rows = (sourceRows || []).map(normalizeLeadRow);
+      const { search, source, campaign, service, stage, qualification, handoff, disposition, rep } = params;
+      if (search) { const term = search.toLowerCase(); rows = rows.filter((row) => [row.name, row.email, row.phone, row.campaign, row.location].filter(Boolean).join(" ").toLowerCase().includes(term)); }
+      if (source && source !== "all") rows = rows.filter((row) => row.source === source);
+      if (campaign && campaign !== "all") rows = rows.filter((row) => row.campaign === campaign);
+      if (service && service !== "all") rows = rows.filter((row) => row.service === service);
+      if (stage && stage !== "all") rows = rows.filter((row) => row.stage === stage);
+      if (qualification && qualification !== "all") rows = rows.filter((row) => row.qualification === qualification);
+      if (handoff && handoff !== "all") rows = rows.filter((row) => (row.handoffType || "None") === handoff);
+      if (disposition && disposition !== "all") rows = rows.filter((row) => (row.disposition || "").startsWith(disposition));
+      if (rep && rep !== "all") rows = rows.filter((row) => row.rep === rep);
+      return { total: rows.length, rows };
+    });
+  }
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v && v !== "all")).toString();
   return request("GET", `/leads${qs ? `?${qs}` : ""}`);
 }
 
 const getLead = async (id) => {
   if (isDataFixtureMode()) return delay().then(() => sampleLeads.find((l) => l.id === id) || null);
-  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/leads/${id}`)); return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null; }
+  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return null; const snapshot = await getDoc(doc(firebaseDb, `tenants/${tenantId}/leads/${id}`)); return snapshot.exists() ? normalizeLeadRow({ id: snapshot.id, ...snapshot.data() }) : null; }
   return request("GET", `/leads/${id}`);
 };
 const getAppointments = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleAppointments);
-  if (isFirebaseMode) return getTenantRows("appointments");
+  if (isFirebaseMode) return getTenantRows("appointments").then((rows) => rows.map(normalizeAppointmentRow));
   return request("GET", "/appointments");
 };
 const getReports = async (params) => {
   if (isDataFixtureMode()) return delay().then(() => sampleReports);
-  if (isFirebaseMode) return normalizeReports((await httpsCallable(firebaseFunctions, "getLiveReport")({ tenantId: await getActiveTenantId(), range: params?.range || null })).data);
+  if (isFirebaseMode) return normalizeReports((await httpsCallable(firebaseFunctions, "getLiveReport")({ tenantId: await getActiveTenantId(), range: params?.range || null, comparison: params?.comparison || null })).data);
   return request("GET", `/reports${params?.range ? `?range=${params.range}` : ""}`);
 };
 const getBilling = async () => {
@@ -328,10 +353,10 @@ const callTenantFunction = async (name, data) => {
   if (!tenantId) throw new PortalApiError(403, "No active tenant membership");
   return (await httpsCallable(firebaseFunctions, name)({ tenantId, ...data })).data;
 };
-const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : isFirebaseMode ? callTenantFunction("createBillingReview", data) : request("POST", "/billing/reviews", data));
+const createBillingReview = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, id: `rev_${Date.now()}`, ...data, status: "Submitted" })) : isFirebaseMode ? callTenantFunction("createBillingReview", { ...data, invoiceId: data.invoiceId || data.invoice }) : request("POST", "/billing/reviews", data));
 const getDocuments = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleDocuments);
-  if (isFirebaseMode) return getTenantRows("documents").then((rows) => rows || []);
+  if (isFirebaseMode) return getTenantRows("documents").then((rows) => (rows || []).map(normalizeDocumentRow));
   return request("GET", "/documents");
 };
 const createDocument = async (formData) => {
@@ -345,7 +370,7 @@ const createDocument = async (formData) => {
   const documentId = `${Date.now()}-${crypto.randomUUID()}`;
   const storagePath = `tenants/${tenantId}/documents/${documentId}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   await uploadBytes(ref(firebaseStorage, storagePath), file, { contentType: file.type || "application/octet-stream" });
-  return callTenantFunction("createDocumentMetadata", { name: file.name, category: formData.get("category") || "Customer-uploaded files", storagePath, contentType: file.type, sizeBytes: file.size });
+  return callTenantFunction("createDocumentMetadata", { documentId, name: file.name, category: formData.get("category") || "Customer-uploaded files", storagePath, contentType: file.type, sizeBytes: file.size });
 };
 const downloadDocument = async (document) => {
   if (isDataFixtureMode()) return null;
@@ -354,24 +379,35 @@ const downloadDocument = async (document) => {
 };
 const getSupport = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSupport);
-  if (isFirebaseMode) return getTenantRows("supportRequests").then((rows) => ({ requests: rows || [] }));
+  if (isFirebaseMode) return getTenantRows("supportRequests").then((rows) => ({ requests: (rows || []).map(normalizeSupportRow) }));
   return request("GET", "/support");
 };
-const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : isFirebaseMode ? callTenantFunction("createSupportRequest", data) : request("POST", "/support", data));
+const createSupport = (data) => (isDataFixtureMode() ? delay(400).then(() => ({ ok: true, id: `sr_${Date.now()}`, ...data, status: "Open" })) : isFirebaseMode ? callTenantFunction("createSupportRequest", { ...data, category: data.category || data.type }) : request("POST", "/support", data));
+const addSupportReply = (requestId, body) => (isDataFixtureMode() ? delay(250).then(() => ({ ok: true, message: { body, at: new Date().toISOString() } })) : isFirebaseMode ? callTenantFunction("addSupportReply", { requestId, body }) : request("POST", `/support/${requestId}/replies`, { body }));
 const getNotifications = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleNotifications);
-  if (isFirebaseMode) { const user = firebaseAuth.currentUser; const rows = await getTenantRows("notifications"); return normalizeLive(sampleNotifications, { recent: (rows || []).filter((item) => !item.recipientUid || item.recipientUid === user?.uid) }); }
+  if (isFirebaseMode) return normalizeLive(sampleNotifications, await callTenantFunction("getNotificationWorkspace", {}));
   return request("GET", "/notifications");
 };
 const updateNotifications = (prefs) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, preferences: prefs })) : isFirebaseMode ? callTenantFunction("updateNotificationPreferences", { preferences: prefs }) : request("PATCH", "/notifications/preferences", { preferences: prefs }));
 const getSecurity = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleSecurity);
-  if (isFirebaseMode) return normalizeLive(sampleSecurity, { mfaEnabled: !!firebaseAuth.currentUser?.multiFactor?.enrolledFactors?.length });
+  if (isFirebaseMode) return normalizeLive(sampleSecurity, await callTenantFunction("getSecurityWorkspace", {}));
   return request("GET", "/security");
+};
+const updateSecuritySettings = (settings) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, settings })) : isFirebaseMode ? callTenantFunction("updateSecuritySettings", { settings }) : request("PATCH", "/security/settings", settings));
+const revokeAllSessions = () => (isDataFixtureMode() ? delay().then(() => ({ ok: true })) : isFirebaseMode ? callTenantFunction("revokeAllSessions", {}) : request("POST", "/security/sessions/revoke-all"));
+const requestCurrentPasswordReset = async () => {
+  const email = firebaseAuth.currentUser?.email;
+  if (!email) throw new PortalApiError(400, "No email is associated with this account.");
+  return requestRecovery({ email });
 };
 const getAccount = async () => {
   if (isDataFixtureMode()) return delay().then(() => sampleAccount);
-  if (isFirebaseMode) { const tenantId = await getActiveTenantId(); if (!tenantId) return normalizeLive(sampleAccount, null); const tenant = await getDoc(doc(firebaseDb, `tenants/${tenantId}`)); const profile = await httpsCallable(firebaseFunctions, "getMyProfile")(); return normalizeLive(sampleAccount, { businessProfile: tenant.exists() ? tenant.data() : {}, memberships: profile.data?.memberships || [], user: profile.data || null, users: [] }); }
+  if (isFirebaseMode) {
+    const live = (await callTenantFunction("getAccountWorkspace", {})) || {};
+    return { ...normalizeLive(sampleAccount, live), user: live.user || null, permissions: live.permissions || {} };
+  }
   return request("GET", "/account");
 };
 const inviteUser = (data) => (
@@ -381,6 +417,10 @@ const inviteUser = (data) => (
       ? callTenantFunction("createInvitation", data)
       : request("POST", "/account/users/invite", data)
 );
+const updateMyProfile = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, profile: data })) : isFirebaseMode ? callTenantFunction("updateMyProfile", data) : request("PATCH", "/account/profile", data));
+const updateBusinessProfile = (data) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, businessProfile: data })) : isFirebaseMode ? callTenantFunction("updateTenantProfile", { businessProfile: data }) : request("PATCH", "/account/business", data));
+const updateMemberRole = (uid, role) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, uid, role })) : isFirebaseMode ? callTenantFunction("updateMemberRole", { uid, role }) : request("PATCH", `/account/users/${uid}/role`, { role }));
+const setMemberStatus = (uid, active) => (isDataFixtureMode() ? delay().then(() => ({ ok: true, uid, active })) : isFirebaseMode ? callTenantFunction("setMembershipStatus", { uid, active }) : request("PATCH", `/account/users/${uid}/status`, { active }));
 
 export const portalAdapter = {
   isPreviewMode,
@@ -389,8 +429,9 @@ export const portalAdapter = {
   apiUrl: API_URL,
   auth: { getSession, createSession, verifyMfa, deleteSession, requestRecovery, completeRecovery },
   getDashboard, getLeads, getLead, getAppointments, getReports, getBilling, getInvoice,
-  createBillingReview, getDocuments, createDocument, downloadDocument, getSupport, createSupport,
-  getNotifications, updateNotifications, getSecurity, getAccount, inviteUser,
+  createBillingReview, getDocuments, createDocument, downloadDocument, getSupport, createSupport, addSupportReply,
+  getNotifications, updateNotifications, getSecurity, updateSecuritySettings, revokeAllSessions, requestCurrentPasswordReset, getAccount, inviteUser,
+  updateMyProfile, updateBusinessProfile, updateMemberRole, setMemberStatus,
 };
 
 export default portalAdapter;

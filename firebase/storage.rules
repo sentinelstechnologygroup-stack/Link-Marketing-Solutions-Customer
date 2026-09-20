@@ -7,6 +7,10 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.active == true;
     }
 
+    function lmsSuperAdmin() {
+      return request.auth != null && ('lmsSuperAdmin' in request.auth.token) && request.auth.token.lmsSuperAdmin == true;
+    }
+
     function assignedAgent(tenantId) {
       return request.auth != null
         && firestore.exists(/databases/(default)/documents/agentUsers/$(request.auth.uid)/assignments/$(tenantId))
@@ -14,8 +18,8 @@ service firebase.storage {
     }
 
     match /tenants/{tenantId}/{allPaths=**} {
-      allow read: if member(tenantId) || assignedAgent(tenantId);
-      allow write: if (member(tenantId) || assignedAgent(tenantId))
+      allow read: if lmsSuperAdmin() || member(tenantId) || assignedAgent(tenantId);
+      allow write: if (lmsSuperAdmin() || member(tenantId) || assignedAgent(tenantId))
         && request.resource.size < 25 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf|image/.*|text/.*|application/vnd.openxmlformats-officedocument.*');
     }
