@@ -5,7 +5,7 @@ import TopBar from "@/components/portal/TopBar";
 import MobileDrawer from "@/components/portal/MobileDrawer";
 import PreviewBanner from "@/components/portal/PreviewBanner";
 import PortalErrorBoundary from "@/components/portal/PortalErrorBoundary";
-import { isFixtureDataMode } from "@/services/portalAdapter";
+import { isFixtureDataActive } from "@/services/portalAdapter";
 
 export default function PortalLayout({ children }) {
   const location = useLocation();
@@ -21,7 +21,7 @@ export default function PortalLayout({ children }) {
       </aside>
 
       <div className="flex-1 min-w-0 w-0 flex flex-col">
-        {isFixtureDataMode && <PreviewBanner />}
+        {isFixtureDataActive() && <PreviewBanner />}
         <TopBar title={title} onOpenMenu={() => setMenuOpen(true)} />
         <main id="main-content" className="flex-1 min-w-0 w-full overflow-x-hidden px-4 sm:px-6 lg:px-8 py-5 sm:py-7">
           <PortalErrorBoundary>

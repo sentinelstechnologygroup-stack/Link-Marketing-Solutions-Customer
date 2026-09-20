@@ -102,6 +102,7 @@ const isDataFixtureMode = () => Boolean(
   || PREVIEW_DATA_ENABLED
   || (UI_FIXTURES_ENABLED && DEMO_TENANT_IDS.has(activeTenantId))
 );
+export const isFixtureDataActive = () => isDataFixtureMode();
 
 // Keep the complete UI contract when a live tenant has no records yet.
 const emptyFromShape = (value) => {

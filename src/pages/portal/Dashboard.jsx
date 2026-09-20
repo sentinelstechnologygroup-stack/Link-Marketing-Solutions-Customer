@@ -92,7 +92,9 @@ export default function Dashboard() {
         <SectionCard title="Conversations & qualified opportunities" subtitle="Last 7 days" className="lg:col-span-2">
           <ConversationsAreaChart data={data.sevenDay} />
           <p className="mt-3 text-[12px]" style={{ color: "var(--muted-ink)" }}>
-            Conversations rose through the week, with qualified opportunities peaking on Sep 12 (13).
+            {data.sevenDay?.length
+              ? "Daily conversations and qualified opportunities for the selected reporting period."
+              : "Activity trends will appear here as leads are contacted and qualified."}
           </p>
         </SectionCard>
         <SectionCard title="Lead sources" subtitle="This period">
