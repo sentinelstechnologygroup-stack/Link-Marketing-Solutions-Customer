@@ -76,12 +76,20 @@ function rowsForCsv(sections) {
   return rows;
 }
 
-export function exportReportCsv(data) {
+export function createReportCsv(data) {
   const csv = rowsForCsv(buildReportSections(data)).map((row) => row.map(csvCell).join(",")).join("\r\n");
-  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), reportFilename(data, "csv"));
+  return {
+    blob: new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }),
+    filename: reportFilename(data, "csv"),
+  };
 }
 
-export async function exportReportXlsx(data) {
+export function exportReportCsv(data) {
+  const { blob, filename } = createReportCsv(data);
+  downloadBlob(blob, filename);
+}
+
+export async function createReportXlsx(data) {
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Link Marketing Solutions";
@@ -101,7 +109,15 @@ export async function exportReportXlsx(data) {
     }));
   }
   const buffer = await workbook.xlsx.writeBuffer();
-  downloadBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), reportFilename(data, "xlsx"));
+  return {
+    blob: new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+    filename: reportFilename(data, "xlsx"),
+  };
+}
+
+export async function exportReportXlsx(data) {
+  const { blob, filename } = await createReportXlsx(data);
+  downloadBlob(blob, filename);
 }
 
 function docxTable(section, docx) {
@@ -119,7 +135,7 @@ function docxTable(section, docx) {
   });
 }
 
-export async function exportReportDocx(data) {
+export async function createReportDocx(data) {
   const docx = await import("docx");
   const { Document, HeadingLevel, Packer, Paragraph } = docx;
   const sections = buildReportSections(data);
@@ -134,10 +150,15 @@ export async function exportReportDocx(data) {
     children.push(docxTable(section, docx));
   }
   const blob = await Packer.toBlob(new Document({ sections: [{ children }] }));
-  downloadBlob(blob, reportFilename(data, "docx"));
+  return { blob, filename: reportFilename(data, "docx") };
 }
 
-export async function exportReportPdf(data) {
+export async function exportReportDocx(data) {
+  const { blob, filename } = await createReportDocx(data);
+  downloadBlob(blob, filename);
+}
+
+export async function createReportPdf(data) {
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const sections = buildReportSections(data);
@@ -180,5 +201,13 @@ export async function exportReportPdf(data) {
     pdf.setFontSize(8);
     pdf.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: "right" });
   }
-  pdf.save(reportFilename(data, "pdf"));
+  return {
+    blob: new Blob([pdf.output("arraybuffer")], { type: "application/pdf" }),
+    filename: reportFilename(data, "pdf"),
+  };
+}
+
+export async function exportReportPdf(data) {
+  const { blob, filename } = await createReportPdf(data);
+  downloadBlob(blob, filename);
 }

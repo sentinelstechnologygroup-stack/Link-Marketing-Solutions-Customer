@@ -8,6 +8,7 @@
     "build": "vite build && node scripts/create-spa-routes.cjs",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
+    "test:exports": "node scripts/verify-report-exports.mjs",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"
   },
