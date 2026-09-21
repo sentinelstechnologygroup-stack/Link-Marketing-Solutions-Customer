@@ -13,6 +13,8 @@ Date: 2026-09-20
 - Firebase Functions maintenance tag: `release/firebase-functions-7.4.0-20260921`
 - Firebase Functions Brand-isolation source: `ec6eb09`
 - Firebase Functions Brand-isolation tag: `release/agent-brand-isolation-20260921`
+- Firebase Functions communications-scope source: `971e57d`
+- Firebase Functions communications-scope tag: `release/communications-scope-20260921`
 - Customer export release tag: `release/customer-report-exports-20260921`
 - Agent production deployment: `dpl_sKJYWhjmU7kgFNk7NACPpzocgDsa`
 - Customer known-good deployment: `dpl_EbUPdwcLvmeUvguifP48WSQik3Ni`
@@ -76,6 +78,10 @@ The repeatable export gate is `npm run test:exports`.
 
 - In-app notifications: passed.
 - Recording upload, metadata, and protected download: passed.
+- Communication health checks and pre-provider failure handling: passed.
+- Outbound call creation now requires an authorized tenant-and-Brand lead.
+- Call lifecycle operations require the persisted tenant-and-Brand call record.
+- Cross-Brand call attempts are rejected before provider access.
 - Twilio voice and transfers: blocked because no Twilio credentials or caller
   number are installed in the production Functions environment.
 - External email delivery: blocked because no production email provider is
