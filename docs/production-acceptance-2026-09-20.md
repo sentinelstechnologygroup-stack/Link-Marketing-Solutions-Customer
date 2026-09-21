@@ -11,6 +11,8 @@ Date: 2026-09-20
 - Pre-enforcement rollback tag: `backup/pre-app-check-enforcement-20260920`
 - Firebase Functions maintenance source: `42bbe1f`
 - Firebase Functions maintenance tag: `release/firebase-functions-7.4.0-20260921`
+- Firebase Functions Brand-isolation source: `ec6eb09`
+- Firebase Functions Brand-isolation tag: `release/agent-brand-isolation-20260921`
 - Customer export release tag: `release/customer-report-exports-20260921`
 - Agent production deployment: `dpl_sKJYWhjmU7kgFNk7NACPpzocgDsa`
 - Customer known-good deployment: `dpl_EbUPdwcLvmeUvguifP48WSQik3Ni`
@@ -40,12 +42,20 @@ acceptance record.
 
 ## Security acceptance
 
-- Emulator authorization suite: 14 of 14 passed.
+- Emulator authorization and bridge suite: 15 of 15 passed.
+- Provisioning, server-authorized ingestion, Agent disposition, appointment,
+  Customer projection, audit, notification, tenant denial, and Brand denial:
+  passed in one repeatable emulator workflow.
+- Agent callable collection reads, record writes, lead transitions, appointment
+  workflows, and assignment revocation enforce tenant and Brand ownership.
 - App Check browser requests: valid tokens observed from Customer and Agent.
 - Callable Functions reject missing App Check tokens.
 - Authentication, Firestore, and Storage report `ENFORCED` baseline protection.
 - Tenant membership, Agent assignment, Brand path, and immutable ownership checks
   remain the primary authorization boundaries.
+- Authenticated Golden Cross Agent production regression: passed with all five
+  production-tenant leads visible after the Brand-isolation deployment.
+- Permanent Realtor demo tenant remained present and independently selectable.
 
 ## Export acceptance
 
