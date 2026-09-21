@@ -82,6 +82,7 @@ test('provisioning, ingestion, Agent workflow, Customer projection, and Brand is
 
   const tenantId = provisioned.tenantId;
   const brandId = provisioned.brandId;
+  await db.doc(`tenants/${tenantId}/businessOwners/${clientUid}`).update({ phone: '+15555550200', routingEligible: true });
   const agentRequest = (data) => callableRequest(agentUid, { tenantId, ...data }, { role: 'agent' });
   const clientRequest = (data) => callableRequest(clientUid, { tenantId, ...data }, { role: 'client_admin' });
 
@@ -93,6 +94,7 @@ test('provisioning, ingestion, Agent workflow, Customer projection, and Brand is
     body: {
       name: 'Workflow Pilot Lead',
       email: 'workflow-lead@example.test',
+      phone: '+15555550100',
       tenantId: 'tenant-attacker',
       brandId: 'brand-attacker',
       industryId: 'attacker-industry',
@@ -141,9 +143,33 @@ test('provisioning, ingestion, Agent workflow, Customer projection, and Brand is
   await assert.rejects(
     functions.communications.run(agentRequest({
       action: 'start_call',
+      params: { leadId, to: '+15555550999' },
+    })),
+    (error) => error.code === 'permission-denied',
+  );
+  await assert.rejects(
+    functions.communications.run(agentRequest({
+      action: 'start_call',
       params: { leadId, to: '+15555550100' },
     })),
-    (error) => error.code === 'invalid-argument',
+    (error) => error.code === 'failed-precondition',
+  );
+  await db.doc(`tenants/${tenantId}/callRecords/workflow-call`).set({
+    tenantId, brandId, leadId, clientContactId: clientUid, agentUid, status: 'in_progress',
+  });
+  await assert.rejects(
+    functions.communications.run(agentRequest({
+      action: 'warm_transfer',
+      params: { callId: 'workflow-call', transferTo: '+15555550999' },
+    })),
+    (error) => error.code === 'permission-denied',
+  );
+  await assert.rejects(
+    functions.communications.run(agentRequest({
+      action: 'warm_transfer',
+      params: { callId: 'workflow-call', transferTo: '+15555550200' },
+    })),
+    (error) => error.code === 'failed-precondition',
   );
 
   const beforeTransition = await leadRef.get();

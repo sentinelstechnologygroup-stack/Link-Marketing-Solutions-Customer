@@ -149,6 +149,10 @@ function assignmentAllowsBrand(assignment, brandId) {
   return !allowed || !brandId || allowed.has(brandId);
 }
 
+function normalizedPhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
 function requireAssignmentBrand(assignment, brandId) {
   if (!assignmentAllowsBrand(assignment, brandId)) {
     throw new HttpsError('permission-denied', 'Your assignment does not include this Brand.');
@@ -742,15 +746,20 @@ exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
     if (!leadId) throw new HttpsError('invalid-argument', 'An authorized leadId is required.');
     const leadSnapshot = await db.doc(`tenants/${tenantId}/leads/${leadId}`).get();
     if (!leadSnapshot.exists || leadSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
-    brandId = recordBrandId(leadSnapshot.data());
+    const leadData = leadSnapshot.data();
+    brandId = recordBrandId(leadData);
     requireAssignmentBrand(assignment, brandId);
-    if (!params.to || !process.env.TWILIO_FROM_NUMBER) throw new HttpsError('invalid-argument', 'A destination and configured caller number are required.');
+    if (!params.to || !normalizedPhone(leadData.phone) || normalizedPhone(params.to) !== normalizedPhone(leadData.phone)) {
+      throw new HttpsError('permission-denied', 'The call destination must match the authorized lead phone.');
+    }
+    if (!process.env.TWILIO_FROM_NUMBER) throw new HttpsError('failed-precondition', 'Telephony is not configured.');
     result = await twilioRequest('/Calls.json', 'POST', { To: params.to, From: process.env.TWILIO_FROM_NUMBER, Url: params.twimlUrl || process.env.TWILIO_VOICE_WEBHOOK_URL });
     callId = result.sid;
     if (!callId) throw new HttpsError('internal', 'The telephony provider did not return a call identifier.');
     callRef = db.doc(`tenants/${tenantId}/callRecords/${callId}`);
     await callRef.set({
       tenantId, brandId, leadId, agentUid: caller.uid, provider: 'twilio', providerCallId: callId,
+      clientContactId: leadData.routedClientContactId || null,
       direction: 'outbound', destination: String(params.to).slice(0, 80), status: result.status || 'queued',
       startedAt: FieldValue.serverTimestamp(), endedAt: null, createdBy: caller.uid,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
@@ -775,10 +784,25 @@ exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
     callRef = db.doc(`tenants/${tenantId}/callRecords/${callSid}`);
     const callSnapshot = await callRef.get();
     if (!callSnapshot.exists || callSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Call not found.');
-    brandId = recordBrandId(callSnapshot.data());
-    leadId = callSnapshot.data().leadId || '';
+    const callData = callSnapshot.data();
+    brandId = recordBrandId(callData);
+    leadId = callData.leadId || '';
     requireAssignmentBrand(assignment, brandId);
     if (!params.transferTo) throw new HttpsError('invalid-argument', 'A transfer destination is required.');
+    const leadSnapshot = await db.doc(`tenants/${tenantId}/leads/${leadId}`).get();
+    if (!leadSnapshot.exists || leadSnapshot.data().tenantId !== tenantId || recordBrandId(leadSnapshot.data()) !== brandId) {
+      throw new HttpsError('not-found', 'The routed lead is unavailable.');
+    }
+    const clientContactId = callData.clientContactId || leadSnapshot.data().routedClientContactId;
+    if (!clientContactId) throw new HttpsError('failed-precondition', 'The lead has no routed Client Contact.');
+    const contactSnapshot = await db.doc(`tenants/${tenantId}/businessOwners/${clientContactId}`).get();
+    const contact = contactSnapshot.exists ? contactSnapshot.data() : null;
+    if (!contact || contact.status === 'inactive' || contact.routingEligible === false || (recordBrandId(contact) && recordBrandId(contact) !== brandId)) {
+      throw new HttpsError('failed-precondition', 'The routed Client Contact is unavailable.');
+    }
+    if (!normalizedPhone(contact.phone) || normalizedPhone(params.transferTo) !== normalizedPhone(contact.phone)) {
+      throw new HttpsError('permission-denied', 'Transfers must use the routed Client Contact phone.');
+    }
     result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Twiml: `<Response><Dial>${String(params.transferTo).replace(/[<>]/g, '')}</Dial></Response>` });
   }
   if (callRef && action !== 'start_call') {
