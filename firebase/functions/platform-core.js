@@ -728,25 +728,68 @@ exports.appointmentWorkflow = onCall({ enforceAppCheck: true }, async (request) 
 exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
   const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
-  const { caller } = await requireAgentAssignment(request, tenantId, roles);
+  const { caller, assignment } = await requireAgentAssignment(request, tenantId, roles);
   if (!['health_check', 'start_call', 'end_call', 'hold_call', 'resume_call', 'warm_transfer'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported communications action.');
   if (action === 'health_check') return { ok: true, configured: twilioConfigured(), provider: 'twilio', actorUid: caller.uid };
   const callSid = typeof params.callId === 'string' ? params.callId : '';
   if (!callSid && action !== 'start_call') throw new HttpsError('invalid-argument', 'A callId is required.');
   let result;
+  let callId = callSid;
+  let leadId = typeof params.leadId === 'string' ? params.leadId : '';
+  let brandId = null;
+  let callRef = null;
   if (action === 'start_call') {
+    if (!leadId) throw new HttpsError('invalid-argument', 'An authorized leadId is required.');
+    const leadSnapshot = await db.doc(`tenants/${tenantId}/leads/${leadId}`).get();
+    if (!leadSnapshot.exists || leadSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
+    brandId = recordBrandId(leadSnapshot.data());
+    requireAssignmentBrand(assignment, brandId);
     if (!params.to || !process.env.TWILIO_FROM_NUMBER) throw new HttpsError('invalid-argument', 'A destination and configured caller number are required.');
     result = await twilioRequest('/Calls.json', 'POST', { To: params.to, From: process.env.TWILIO_FROM_NUMBER, Url: params.twimlUrl || process.env.TWILIO_VOICE_WEBHOOK_URL });
+    callId = result.sid;
+    if (!callId) throw new HttpsError('internal', 'The telephony provider did not return a call identifier.');
+    callRef = db.doc(`tenants/${tenantId}/callRecords/${callId}`);
+    await callRef.set({
+      tenantId, brandId, leadId, agentUid: caller.uid, provider: 'twilio', providerCallId: callId,
+      direction: 'outbound', destination: String(params.to).slice(0, 80), status: result.status || 'queued',
+      startedAt: FieldValue.serverTimestamp(), endedAt: null, createdBy: caller.uid,
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    });
   } else if (action === 'end_call') {
+    callRef = db.doc(`tenants/${tenantId}/callRecords/${callSid}`);
+    const callSnapshot = await callRef.get();
+    if (!callSnapshot.exists || callSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Call not found.');
+    brandId = recordBrandId(callSnapshot.data());
+    leadId = callSnapshot.data().leadId || '';
+    requireAssignmentBrand(assignment, brandId);
     result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Status: 'completed' });
   } else if (action === 'hold_call' || action === 'resume_call') {
+    callRef = db.doc(`tenants/${tenantId}/callRecords/${callSid}`);
+    const callSnapshot = await callRef.get();
+    if (!callSnapshot.exists || callSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Call not found.');
+    brandId = recordBrandId(callSnapshot.data());
+    leadId = callSnapshot.data().leadId || '';
+    requireAssignmentBrand(assignment, brandId);
     result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Twiml: action === 'hold_call' ? '<Response><Say>The call is on hold.</Say><Pause length="60"/></Response>' : '<Response><Say>Resuming call.</Say></Response>' });
   } else {
+    callRef = db.doc(`tenants/${tenantId}/callRecords/${callSid}`);
+    const callSnapshot = await callRef.get();
+    if (!callSnapshot.exists || callSnapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Call not found.');
+    brandId = recordBrandId(callSnapshot.data());
+    leadId = callSnapshot.data().leadId || '';
+    requireAssignmentBrand(assignment, brandId);
     if (!params.transferTo) throw new HttpsError('invalid-argument', 'A transfer destination is required.');
     result = await twilioRequest(`/Calls/${encodeURIComponent(callSid)}.json`, 'POST', { Twiml: `<Response><Dial>${String(params.transferTo).replace(/[<>]/g, '')}</Dial></Response>` });
   }
-  await recordAudit({ tenantId, actorUid: caller.uid, action: `telephony.${action}`, target: callSid || result.sid || null });
-  return { ok: true, action, callId: result.sid || callSid, status: result.status || 'accepted' };
+  if (callRef && action !== 'start_call') {
+    const status = action === 'end_call' ? 'completed' : action === 'hold_call' ? 'on_hold' : action === 'resume_call' ? 'in_progress' : 'transferred';
+    await callRef.update({
+      status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid,
+      ...(action === 'end_call' ? { endedAt: FieldValue.serverTimestamp() } : {}),
+    });
+  }
+  await recordAudit({ tenantId, actorUid: caller.uid, action: `telephony.${action}`, target: callId || null, metadata: { brandId, leadId } });
+  return { ok: true, action, callId, status: result.status || 'accepted' };
 });
 
 exports.twilioWebhook = onRequest({ cors: false }, async (request, response) => {

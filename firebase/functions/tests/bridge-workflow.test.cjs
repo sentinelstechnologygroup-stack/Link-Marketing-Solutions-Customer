@@ -128,6 +128,23 @@ test('provisioning, ingestion, Agent workflow, Customer projection, and Brand is
     })),
     (error) => error.code === 'permission-denied',
   );
+  const communicationsHealth = await functions.communications.run(agentRequest({ action: 'health_check' }));
+  assert.equal(communicationsHealth.ok, true);
+  assert.equal(communicationsHealth.configured, false);
+  await assert.rejects(
+    functions.communications.run(agentRequest({
+      action: 'start_call',
+      params: { leadId: 'brand-b-lead', to: '+15555550100' },
+    })),
+    (error) => error.code === 'permission-denied',
+  );
+  await assert.rejects(
+    functions.communications.run(agentRequest({
+      action: 'start_call',
+      params: { leadId, to: '+15555550100' },
+    })),
+    (error) => error.code === 'invalid-argument',
+  );
 
   const beforeTransition = await leadRef.get();
   await functions.transitionLead.run(agentRequest({ leadId, status: 'qualified', disposition: 'qualified', note: 'Qualified in emulator workflow.' }));
