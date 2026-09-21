@@ -37,6 +37,13 @@ const AGENT_WRITE_COLLECTIONS = new Set([
   'leads', 'followUpTasks', 'communicationAlerts', 'callRecords', 'callTranscripts',
   'callQualityReviews', 'appointments', 'businessOwners', 'reports',
 ]);
+const BRAND_SCOPED_COLLECTIONS = new Set([
+  'brands', 'campaigns', 'leadSources', 'leads', 'followUpTasks',
+  'communicationAlerts', 'callRecords', 'callTranscripts', 'callQualityReviews',
+  'appointments', 'businessOwners', 'scripts', 'qualificationForms',
+  'routingRules', 'phoneNumbers', 'reports', 'documents', 'invoices',
+  'notifications', 'customerActivity',
+]);
 const ADMIN_WRITE_COLLECTIONS = new Set([
   'organizations', 'brands', 'campaigns', 'leadSources', 'scripts',
   'qualificationForms', 'routingRules', 'phoneNumbers',
@@ -61,7 +68,12 @@ const REQUIRED_FIELDS = {
   reports: ['name', 'type', 'periodStart', 'periodEnd', 'status', 'storagePath'],
 };
 
-const IMMUTABLE_TENANT_FIELDS = new Set(['tenantId', 'industry', 'brandId', 'sourceId', 'campaignId', 'routingProfileId', 'receivedAt', 'createdAt', 'createdBy']);
+const IMMUTABLE_TENANT_FIELDS = new Set([
+  'tenantId', 'organization_id', 'industry', 'industryId', 'brandId', 'brand_id',
+  'sourceId', 'source_id', 'campaignId', 'campaign_id', 'routingProfileId',
+  'workflowVersion', 'scriptSetId', 'qualificationFormId', 'consentPolicyId',
+  'retentionPolicyId', 'notificationProfileId', 'receivedAt', 'createdAt', 'createdBy',
+]);
 const INDUSTRY_POLICY_FIELDS = ['industryId', 'workflowVersion', 'scriptSetId', 'qualificationFormId', 'routingProfileId', 'consentPolicyId', 'retentionPolicyId'];
 
 function writeRolesFor(collectionName) {
@@ -119,6 +131,45 @@ async function requireAgentAssignment(request, tenantId, roles = ['agent', 'clie
   return { caller, membership: data, assignment: data };
 }
 
+function scopedBrandIds(assignment) {
+  if (!assignment) return null;
+  const values = [
+    assignment.brandId,
+    ...(Array.isArray(assignment.brandIds) ? assignment.brandIds : []),
+  ].filter((value) => typeof value === 'string' && value.trim());
+  return values.length ? new Set(values) : null;
+}
+
+function recordBrandId(record) {
+  return record?.brandId || record?.brand_id || null;
+}
+
+function assignmentAllowsBrand(assignment, brandId) {
+  const allowed = scopedBrandIds(assignment);
+  return !allowed || !brandId || allowed.has(brandId);
+}
+
+function requireAssignmentBrand(assignment, brandId) {
+  if (!assignmentAllowsBrand(assignment, brandId)) {
+    throw new HttpsError('permission-denied', 'Your assignment does not include this Brand.');
+  }
+}
+
+function applyAssignmentBrand(assignment, collectionName, value) {
+  const input = objectInput(value);
+  const allowed = scopedBrandIds(assignment);
+  if (!allowed) return input;
+  const supplied = recordBrandId(input);
+  if (supplied) {
+    requireAssignmentBrand(assignment, supplied);
+    return input;
+  }
+  if (!BRAND_SCOPED_COLLECTIONS.has(collectionName)) return input;
+  if (allowed.size !== 1) throw new HttpsError('invalid-argument', 'A Brand is required for this record.');
+  const [brandId] = allowed;
+  return { ...input, brandId };
+}
+
 function stripImmutablePatch(data) {
   const patch = objectInput(data);
   for (const field of IMMUTABLE_TENANT_FIELDS) delete patch[field];
@@ -143,8 +194,8 @@ function validateRequiredFields(collectionName, data) {
   if (missing.length) throw new HttpsError('invalid-argument', `Missing required fields: ${missing.join(', ')}`);
 }
 
-async function createTenantRecord({ request, tenantId, collectionName, data, roles, action, authorize = requireMembership }) {
-  const { caller } = await authorize(request, tenantId, roles);
+async function createTenantRecord({ request, tenantId, collectionName, data, roles, action, authorize = requireMembership, authorization = null }) {
+  const { caller } = authorization || await authorize(request, tenantId, roles);
   const now = FieldValue.serverTimestamp();
   const record = { ...objectInput(data), tenantId, createdBy: caller.uid, createdAt: now, updatedAt: now };
   const ref = await db.collection(`tenants/${tenantId}/${collectionName}`).add(record);
@@ -531,11 +582,14 @@ exports.getLiveReport = onCall({ enforceAppCheck: true }, async (request) => {
 
 exports.getAgentCollection = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, collectionName, limit: requestedLimit = 200 } = request.data || {};
-  await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
+  const { assignment } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent', 'auditor']);
   if (!AGENT_COLLECTIONS.has(collectionName)) throw new HttpsError('invalid-argument', 'Collection is not available through the CRM API.');
   const pageSize = Math.min(Math.max(Number(requestedLimit) || 200, 1), 500);
   const snapshot = await db.collection(`tenants/${tenantId}/${collectionName}`).where('tenantId', '==', tenantId).limit(pageSize).get();
-  return { rows: snapshot.docs.map((item) => ({ id: item.id, ...item.data() })) };
+  const rows = snapshot.docs
+    .map((item) => ({ id: item.id, ...item.data() }))
+    .filter((item) => assignmentAllowsBrand(assignment, recordBrandId(item)));
+  return { rows };
 });
 
 exports.createAgentRecord = onCall({ enforceAppCheck: true }, async (request) => {
@@ -543,10 +597,11 @@ exports.createAgentRecord = onCall({ enforceAppCheck: true }, async (request) =>
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs') throw new HttpsError('invalid-argument', 'Collection is not writable through the CRM API.');
   const roles = writeRolesFor(collectionName);
   if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
-  validateRequiredFields(collectionName, data);
-  const input = objectInput(data);
+  const authorization = await requireAgentAssignment(request, tenantId, roles);
+  const input = applyAssignmentBrand(authorization.assignment, collectionName, data);
+  validateRequiredFields(collectionName, input);
   if (collectionName === 'leads' && INDUSTRY_POLICY_FIELDS.some((field) => input[field] === undefined && field !== 'receivedAt')) throw new HttpsError('invalid-argument', 'Lead workflow metadata is required.');
-  return createTenantRecord({ request, tenantId, collectionName, roles, authorize: requireAgentAssignment, action: `crm.${collectionName}.created`, data: input });
+  return createTenantRecord({ request, tenantId, collectionName, roles, authorize: requireAgentAssignment, authorization, action: `crm.${collectionName}.created`, data: input });
 });
 
 exports.updateAgentRecord = onCall({ enforceAppCheck: true }, async (request) => {
@@ -554,10 +609,11 @@ exports.updateAgentRecord = onCall({ enforceAppCheck: true }, async (request) =>
   if (!AGENT_COLLECTIONS.has(collectionName) || collectionName === 'auditLogs' || typeof recordId !== 'string' || !recordId) throw new HttpsError('invalid-argument', 'A valid writable collection and recordId are required.');
   const roles = writeRolesFor(collectionName);
   if (!roles.length) throw new HttpsError('permission-denied', 'This collection is not writable through the CRM API.');
-  const { caller } = await requireAgentAssignment(request, tenantId, roles);
+  const { caller, assignment } = await requireAgentAssignment(request, tenantId, roles);
   const recordRef = db.doc(`tenants/${tenantId}/${collectionName}/${recordId}`);
   const current = await recordRef.get();
   if (!current.exists || current.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Record not found.');
+  requireAssignmentBrand(assignment, recordBrandId(current.data()));
   const patch = stripImmutablePatch(data);
   await recordRef.update({ ...patch, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
   await recordAudit({ tenantId, actorUid: caller.uid, action: `crm.${collectionName}.updated`, target: recordId });
@@ -585,6 +641,10 @@ exports.revokeAgentAssignment = onCall({ enforceAppCheck: true }, async (request
   const { tenantId, agentUid, assignmentId } = request.data || {};
   const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
   if (typeof agentUid !== 'string' || typeof assignmentId !== 'string') throw new HttpsError('invalid-argument', 'agentUid and assignmentId are required.');
+  const assignmentSnapshot = await db.doc(`agentAssignments/${assignmentId}`).get();
+  if (!assignmentSnapshot.exists || assignmentSnapshot.data().tenantId !== tenantId || assignmentSnapshot.data().agentUid !== agentUid) {
+    throw new HttpsError('not-found', 'Assignment not found.');
+  }
   await db.doc(`agentAssignments/${assignmentId}`).update({ status: 'revoked', updatedAt: FieldValue.serverTimestamp(), revokedBy: caller.uid });
   await db.doc(`agentUsers/${agentUid}/assignments/${tenantId}`).set({ status: 'revoked', updatedAt: FieldValue.serverTimestamp(), revokedBy: caller.uid }, { merge: true });
   await recordAudit({ tenantId, actorUid: caller.uid, action: 'agent.assignment.revoked', target: assignmentId, metadata: { agentUid } });
@@ -607,11 +667,12 @@ exports.transitionLead = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, leadId, status, disposition = null, note = null } = request.data || {};
   const allowed = new Set(['new', 'contacted', 'qualified', 'appointment_scheduled', 'handed_off', 'closed', 'duplicate']);
   if (!allowed.has(status) || typeof leadId !== 'string' || !leadId) throw new HttpsError('invalid-argument', 'A valid leadId and status are required.');
-  const { caller } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const { caller, assignment } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
   const leadRef = db.doc(`tenants/${tenantId}/leads/${leadId}`);
   const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(leadRef);
     if (!snapshot.exists || snapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
+    requireAssignmentBrand(assignment, recordBrandId(snapshot.data()));
     const patch = { status, lead_status: status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
     if (disposition !== null) patch.disposition = String(disposition).slice(0, 500);
     if (note !== null) patch.latestNote = String(note).slice(0, 2000);
@@ -625,7 +686,7 @@ exports.transitionLead = onCall({ enforceAppCheck: true }, async (request) => {
 exports.appointmentWorkflow = onCall({ enforceAppCheck: true }, async (request) => {
   const { tenantId, action, appointmentId, data = {} } = request.data || {};
   if (!['create', 'confirm', 'reschedule', 'cancel', 'attendance'].includes(action)) throw new HttpsError('invalid-argument', 'Unsupported appointment action.');
-  const { caller } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
+  const { caller, assignment } = await requireAgentAssignment(request, tenantId, ['admin', 'supervisor', 'agent']);
   const appointments = db.collection(`tenants/${tenantId}/appointments`);
   let result;
   if (action === 'create') {
@@ -633,24 +694,30 @@ exports.appointmentWorkflow = onCall({ enforceAppCheck: true }, async (request) 
     const title = data.title || data.subject;
     if (typeof leadId !== 'string' || !leadId || typeof title !== 'string' || !title.trim()) throw new HttpsError('invalid-argument', 'leadId and title are required.');
     const ref = appointments.doc();
-    const record = { ...objectInput(data), leadId, title: title.trim(), tenantId, status: data.status || 'booked', createdBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
     await db.runTransaction(async (transaction) => {
       const leadRef = db.doc(`tenants/${tenantId}/leads/${leadId}`);
       const lead = await transaction.get(leadRef);
       if (!lead.exists || lead.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Lead not found.');
+      const leadData = lead.data();
+      const brandId = recordBrandId(leadData);
+      requireAssignmentBrand(assignment, brandId);
+      const record = {
+        ...stripImmutablePatch(data), leadId, title: title.trim(), tenantId,
+        brandId, brand_id: brandId, status: data.status || 'booked',
+        createdBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      };
       transaction.set(ref, record);
       transaction.update(leadRef, { status: 'appointment_scheduled', updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid });
+      result = { id: ref.id, ...record };
     });
-    result = { id: ref.id, ...record };
   } else {
     if (typeof appointmentId !== 'string' || !appointmentId) throw new HttpsError('invalid-argument', 'appointmentId is required.');
     const ref = appointments.doc(appointmentId);
     const snapshot = await ref.get();
     if (!snapshot.exists || snapshot.data().tenantId !== tenantId) throw new HttpsError('not-found', 'Appointment not found.');
+    requireAssignmentBrand(assignment, recordBrandId(snapshot.data()));
     const status = action === 'confirm' ? 'confirmed' : action === 'reschedule' ? 'booked' : action === 'cancel' ? 'canceled' : String(data.status || 'completed');
-    const patch = { ...objectInput(data), status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
-    delete patch.tenantId;
-    delete patch.createdAt;
+    const patch = { ...stripImmutablePatch(data), status, updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
     await ref.update(patch);
     result = { id: appointmentId, ...snapshot.data(), ...patch };
   }
