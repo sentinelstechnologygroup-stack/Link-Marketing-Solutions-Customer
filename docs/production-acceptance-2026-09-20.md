@@ -4,13 +4,16 @@ Date: 2026-09-20
 
 ## Release identities
 
-- Platform and Customer source: `54b30cbf7780025b031cadcf9dd0987d17643bb3`
+- Platform and Customer source: `c8d6bde`
 - Agent source: `9ac1694d7611a74bb33e73724581a025323b2c77`
 - Platform release tag: `release/lms-platform-app-check-20260920`
 - Agent release tag: `release/agent-app-check-20260920`
 - Pre-enforcement rollback tag: `backup/pre-app-check-enforcement-20260920`
+- Firebase Functions maintenance source: `42bbe1f`
+- Firebase Functions maintenance tag: `release/firebase-functions-7.4.0-20260921`
+- Customer export release tag: `release/customer-report-exports-20260921`
 - Agent production deployment: `dpl_sKJYWhjmU7kgFNk7NACPpzocgDsa`
-- Customer known-good deployment: `dpl_Ezu5QYifac4vdH3Y7dENg9hXHJ4W`
+- Customer known-good deployment: `dpl_EbUPdwcLvmeUvguifP48WSQik3Ni`
 - Website known-good deployment: `dpl_H8FJ8yZw1h9GnKKwFRTrztTeDCH5`
 
 ## Golden Cross production pilot
@@ -43,6 +46,21 @@ acceptance record.
 - Authentication, Firestore, and Storage report `ENFORCED` baseline protection.
 - Tenant membership, Agent assignment, Brand path, and immutable ownership checks
   remain the primary authorization boundaries.
+
+## Export acceptance
+
+- CSV artifact generation: passed.
+- XLSX artifact generation and workbook parsing: passed.
+- DOCX artifact generation and Office archive validation: passed.
+- PDF artifact generation and trailer validation: passed.
+- Zero-data report export preservation in all four formats: passed.
+- CSV formula-injection escaping: passed.
+- Customer production lint and build: passed.
+- Authenticated Golden Cross production report page: passed.
+- Production CSV, Excel, Word, and PDF controls: passed with no application
+  export errors and no browser console warnings or errors.
+
+The repeatable export gate is `npm run test:exports`.
 
 ## Communications acceptance
 
