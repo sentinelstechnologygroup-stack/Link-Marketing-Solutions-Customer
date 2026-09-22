@@ -7,7 +7,7 @@
   },
   "scripts": {
     "serve": "firebase emulators:start --only auth,firestore,functions,storage",
-    "test:rules": "firebase emulators:exec --project demo-linkmarketing-local \"npm run test:rules:raw\"",
+    "test:rules": "firebase emulators:exec --only auth,firestore,storage --project demo-linkmarketing-local \"npm run test:rules:raw\"",
     "test:rules:raw": "node --test tests/*.test.cjs",
     "provision:golden-cross": "node scripts/provision-golden-cross-beta.cjs",
     "seed:emulator": "node scripts/seed-emulator.cjs",

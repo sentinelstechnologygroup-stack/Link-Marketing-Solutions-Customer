@@ -123,6 +123,29 @@ test('Firestore limits Brand-assigned agents inside an assigned tenant', async (
   await assertFails(getDoc(doc(db, 'tenants/tenant-brand/leads/lead-b')));
 });
 
+test('Agent supervisors remain limited to their assigned tenant and Brands', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'agentUsers/assigned-supervisor/assignments/tenant-supervised'), {
+      agentUid: 'assigned-supervisor', tenantId: 'tenant-supervised', status: 'active', role: 'supervisor', brandId: 'brand-a', brandIds: ['brand-a'],
+    });
+    await setDoc(doc(db, 'tenants/tenant-supervised/leads/lead-a'), { tenantId: 'tenant-supervised', brandId: 'brand-a', status: 'new' });
+    await setDoc(doc(db, 'tenants/tenant-supervised/leads/lead-b'), { tenantId: 'tenant-supervised', brandId: 'brand-b', status: 'new' });
+    await setDoc(doc(db, 'tenants/tenant-other/leads/lead-other'), { tenantId: 'tenant-other', brandId: 'brand-a', status: 'new' });
+  });
+
+  const db = env.authenticatedContext('assigned-supervisor').firestore();
+  await assertSucceeds(getDoc(doc(db, 'tenants/tenant-supervised/leads/lead-a')));
+  await assertFails(getDoc(doc(db, 'tenants/tenant-supervised/leads/lead-b')));
+  await assertFails(getDoc(doc(db, 'tenants/tenant-other/leads/lead-other')));
+
+  const storage = env.authenticatedContext('assigned-supervisor').storage();
+  const bytes = new Uint8Array([76, 77, 83]);
+  await assertSucceeds(uploadBytes(ref(storage, 'tenants/tenant-supervised/brands/brand-a/recordings/supervisor.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/tenant-supervised/brands/brand-b/recordings/supervisor.txt'), bytes, { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(storage, 'tenants/tenant-other/brands/brand-a/recordings/supervisor.txt'), bytes, { contentType: 'text/plain' }));
+});
+
 test('browser-supplied tenant ownership cannot grant direct lead writes', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'agentUsers/browser-agent/assignments/tenant-owned'), {

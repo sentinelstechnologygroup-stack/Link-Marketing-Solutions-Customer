@@ -133,3 +133,12 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Firebase entity-contract test, repository-wide lint, and production build all passed.
 - The changes remove unused import names only; no page layout, table, card, form, workflow, fixture, or demo behavior changed.
 - Live authenticated verification passed with five Golden Cross leads and correct Brand attribution.
+
+## Complete role-boundary emulator gate - 2026-09-21
+
+- Authorization suite expanded from 15 to 16 tests.
+- Added explicit Agent Supervisor Firestore and Storage tenant/Brand boundary coverage.
+- Client, Client Supervisor, Client Admin, Agent, Agent Supervisor, and LMS Super Admin boundaries are now represented.
+- Browser-supplied tenant ownership, cross-tenant access, cross-Brand access, unsupported uploads, and unauthorized recording paths remain denied.
+- `16/16` Auth, Firestore, workflow, and Storage tests passed.
+- The emulator command now starts only Auth, Firestore, and Storage because Functions contracts are imported directly by the workflow tests, removing an unrelated startup-timeout warning.
