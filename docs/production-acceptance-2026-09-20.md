@@ -15,6 +15,8 @@ Date: 2026-09-20
 - Firebase Functions Brand-isolation tag: `release/agent-brand-isolation-20260921`
 - Firebase Functions communications-scope source: `971e57d`
 - Firebase Functions communications-scope tag: `release/communications-scope-20260921`
+- Firebase Functions routed-contact source: `dbba194`
+- Firebase Functions routed-contact tag: `release/routed-contact-security-20260921`
 - Customer export release tag: `release/customer-report-exports-20260921`
 - Agent production deployment: `dpl_sKJYWhjmU7kgFNk7NACPpzocgDsa`
 - Customer known-good deployment: `dpl_EbUPdwcLvmeUvguifP48WSQik3Ni`
@@ -82,6 +84,9 @@ The repeatable export gate is `npm run test:exports`.
 - Outbound call creation now requires an authorized tenant-and-Brand lead.
 - Call lifecycle operations require the persisted tenant-and-Brand call record.
 - Cross-Brand call attempts are rejected before provider access.
+- Outbound calls must match the authorized lead phone number.
+- Warm transfers must match the active Client Contact routed to that lead.
+- Destination and routed-contact denial tests: passed.
 - Twilio voice and transfers: blocked because no Twilio credentials or caller
   number are installed in the production Functions environment.
 - External email delivery: blocked because no production email provider is
