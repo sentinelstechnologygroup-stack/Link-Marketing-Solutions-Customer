@@ -13,6 +13,7 @@
     "provision:client-supervisor": "node scripts/provision-client-supervisor.cjs",
     "provision:lms-super-admin": "node scripts/provision-lms-super-admin.cjs",
     "provision:agent-supervisor": "node scripts/provision-agent-supervisor.cjs",
+    "provision:client-user": "node scripts/provision-client-user.cjs",
     "seed:emulator": "node scripts/seed-emulator.cjs",
     "reset:emulator": "node scripts/reset-emulator.cjs",
     "deploy": "firebase deploy --only functions"
