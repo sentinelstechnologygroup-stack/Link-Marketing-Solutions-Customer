@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { defineSecret } = require('firebase-functions/params');
 const { HttpsError, onCall, onRequest } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require("firebase-functions/v2");
 
@@ -10,6 +11,8 @@ setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = getFirestore();
 const auth = getAuth();
+const twilioAccountSid = defineSecret('TWILIO_ACCOUNT_SID');
+const twilioAuthToken = defineSecret('TWILIO_AUTH_TOKEN');
 const ROLE_ALIASES = new Map([
   ['customer', 'client'],
   ['admin', 'client_admin'],
@@ -83,14 +86,18 @@ function writeRolesFor(collectionName) {
 }
 
 function twilioConfigured() {
-  return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+  const sid = String(twilioAccountSid.value() || '').trim();
+  const token = String(twilioAuthToken.value() || '').trim();
+  return Boolean(sid && token && sid !== 'not-configured' && token !== 'not-configured');
 }
 
 async function twilioRequest(path, method = 'POST', params = {}) {
   if (!twilioConfigured()) throw new HttpsError('failed-precondition', 'Telephony is not configured.');
+  const accountSid = twilioAccountSid.value();
+  const authToken = twilioAuthToken.value();
   const body = new URLSearchParams(params);
-  const credentials = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}${path}`, {
+  const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}${path}`, {
     method,
     headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: method === 'GET' ? undefined : body,
@@ -729,7 +736,7 @@ exports.appointmentWorkflow = onCall({ enforceAppCheck: true }, async (request) 
   return result;
 });
 
-exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
+exports.communications = onCall({ enforceAppCheck: true, secrets: [twilioAccountSid, twilioAuthToken] }, async (request) => {
   const { tenantId, action, params = {}, adminCheck = false } = request.data || {};
   const roles = adminCheck ? ['admin', 'supervisor'] : ['admin', 'supervisor', 'agent'];
   const { caller, assignment } = await requireAgentAssignment(request, tenantId, roles);
@@ -816,14 +823,15 @@ exports.communications = onCall({ enforceAppCheck: true }, async (request) => {
   return { ok: true, action, callId, status: result.status || 'accepted' };
 });
 
-exports.twilioWebhook = onRequest({ cors: false }, async (request, response) => {
+exports.twilioWebhook = onRequest({ cors: false, secrets: [twilioAuthToken] }, async (request, response) => {
   if (request.method !== 'POST') return response.status(405).send('Method not allowed');
-  if (!process.env.TWILIO_AUTH_TOKEN) return response.status(503).send('Telephony is not configured');
+  const authToken = twilioAuthToken.value();
+  if (!authToken || authToken === 'not-configured') return response.status(503).send('Telephony is not configured');
   const signature = request.get('X-Twilio-Signature') || '';
   const url = `${request.protocol}://${request.get('host')}${request.originalUrl}`;
   const params = request.body || {};
   const data = url + Object.keys(params).sort().map((key) => `${key}${params[key]}`).join('');
-  const expected = crypto.createHmac('sha1', process.env.TWILIO_AUTH_TOKEN).update(data).digest('base64');
+  const expected = crypto.createHmac('sha1', authToken).update(data).digest('base64');
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return response.status(403).send('Invalid signature');
   response.type('text/xml').send('<Response><Say>Link Marketing Services call connected.</Say></Response>');
 });
