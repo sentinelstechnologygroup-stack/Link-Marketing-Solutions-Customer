@@ -196,3 +196,15 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - The Admin Portal displayed the complete trusted client-provisioning workflow for tenant, Brand, industry, initial Client Admin, route key, assigned agents, and retention configuration.
 - `setIndustryConfig` is `ACTIVE`; Vercel reported no runtime errors during the acceptance pass.
 - The privileged browser session was signed out after verification.
+
+## Golden Cross Agent Supervisor acceptance - 2026-09-21
+
+- Extended `createAgentAssignment` to support explicit `agent` and `supervisor` assignments.
+- Only LMS or tenant administrators can create Supervisor assignments; Supervisors may create Agent assignments but cannot elevate peers.
+- Added guarded command `npm run provision:agent-supervisor`.
+- Provisioned `goldencross.agent-supervisor@linkmarketingservices.co` for `tenant-golden-cross-beta` and `brand-golden-cross-realty` only.
+- Live Agent CRM authentication passed and displayed exactly one tenant, one Brand, and the five Golden Cross leads.
+- Supervisor navigation and the Supervisor route loaded successfully.
+- LMS Admin Portal and Settings were absent from navigation.
+- A direct `/admin` request redirected to the ordinary dashboard and exposed no client-provisioning controls.
+- The privileged test session was signed out after verification.
