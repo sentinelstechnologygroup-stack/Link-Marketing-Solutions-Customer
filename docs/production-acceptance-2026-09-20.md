@@ -142,3 +142,13 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Browser-supplied tenant ownership, cross-tenant access, cross-Brand access, unsupported uploads, and unauthorized recording paths remain denied.
 - `16/16` Auth, Firestore, workflow, and Storage tests passed.
 - The emulator command now starts only Auth, Firestore, and Storage because Functions contracts are imported directly by the workflow tests, removing an unrelated startup-timeout warning.
+
+## Golden Cross Client Supervisor acceptance - 2026-09-21
+
+- Added guarded LMS provisioning command `npm run provision:client-supervisor`.
+- Provisioned `goldencross.client-supervisor@linkmarketingservices.co` as `client_supervisor` in `tenant-golden-cross-beta`, limited to `brand-golden-cross-realty`.
+- Membership and profile records were created through Firebase Admin and an audit event was recorded.
+- Live sign-in passed at `https://customer.linkmarketingservices.co/login`.
+- All 11 direct Customer Portal routes loaded without authorization or permission errors.
+- The authenticated dashboard showed the five Golden Cross leads and two appointments, with no fixture fallback.
+- The admin surface keeps user provisioning and permission changes on the trusted backend.
