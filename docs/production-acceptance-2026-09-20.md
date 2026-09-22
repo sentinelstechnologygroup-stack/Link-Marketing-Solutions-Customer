@@ -208,3 +208,14 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - LMS Admin Portal and Settings were absent from navigation.
 - A direct `/admin` request redirected to the ordinary dashboard and exposed no client-provisioning controls.
 - The privileged test session was signed out after verification.
+
+## Golden Cross Client acceptance - 2026-09-21
+
+- Added guarded command `npm run provision:client-user`.
+- Provisioned `goldencross.client.test@linkmarketingservices.co` as `client` in `tenant-golden-cross-beta`, scoped to `brand-golden-cross-realty`.
+- Live Customer Portal authentication passed.
+- The dashboard showed the five Golden Cross leads and two appointments without fixture fallback.
+- All ten ordinary Customer Portal routes loaded without authentication, authorization, or section-load errors.
+- Admin Portal navigation was absent.
+- A direct `/admin` request redirected to the dashboard and exposed no administrative controls.
+- The test session was signed out after verification.
