@@ -162,3 +162,15 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Git working trees were synchronized before the monitoring pass.
 - DNS/TLS check: all three `.co` hosts returned HTTPS 200; the `.com` hosts still point to transfer/parking addresses and do not yet present working TLS.
 - Secret inventory contains only `LMS_INGESTION_KEY`; Twilio and transactional-email credentials remain external release blockers.
+
+## Tenant-aware transactional email release - 2026-09-21
+
+- Added `deliverNotificationEmail`, a Firestore notification trigger using Resend through Secret Manager.
+- Delivery requires the tenant workflow `email` channel and honors user email opt-out preferences.
+- Messages contain no protected lead details and link recipients back to the authenticated Customer Portal.
+- Provider calls use the immutable tenant and notification identifiers as an idempotency key.
+- Delivery status and provider message ID are stored on the tenant-owned notification; delivered and failed attempts create tenant audit events.
+- The authorization and notification suite passes `19/19` tests.
+- Production function state is `ACTIVE` and the post-invocation error scan is clean.
+- Production readiness notification `ebvv7ONX5JMhMhrwuFyw` returned `skipped / provider_not_configured`, proving the safe placeholder behavior.
+- `RESEND_API_KEY` version 1 is intentionally set to `not-configured`; replace it only after Resend setup and sender-domain verification.
