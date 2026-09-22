@@ -115,3 +115,13 @@ verification are complete.
    production traffic.
 
 Rollback does not require deleting tenants, records, demos, or Storage objects.
+
+## Agent Firebase entity contract release - 2026-09-21
+
+- Agent source commit: `d93f59a` (`Normalize Firebase entity contract`).
+- Production deployment: `dpl_4NcqdpXEjw3Da2sJBR9vZnJA9jpG`.
+- Production alias: `https://agent.linkmarketingservices.co`.
+- Focused Firebase entity-contract test passed.
+- Production Vite build passed.
+- Live authenticated Golden Cross verification passed: five leads resolve to `Golden Cross Realty`, Brand activity is populated, and the pilot agent tenant menu remains assignment-scoped.
+- The repository-wide lint command remains blocked by 15 pre-existing unused-import errors in legacy page files; none are introduced by this release.
