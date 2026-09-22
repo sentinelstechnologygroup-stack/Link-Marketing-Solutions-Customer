@@ -152,3 +152,13 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - All 11 direct Customer Portal routes loaded without authorization or permission errors.
 - The authenticated dashboard showed the five Golden Cross leads and two appointments, with no fixture fallback.
 - The admin surface keeps user provisioning and permission changes on the trusted backend.
+
+## Post-release monitoring - 2026-09-21
+
+- Agent Vercel production deployment `dpl_A6NgmKwG3nHkax9RDMv7uP1tweRq` remained `Ready` on `https://agent.linkmarketingservices.co`.
+- Vercel reported no Agent runtime errors during the post-release window.
+- Firebase Cloud Run reported no severity `ERROR` entries during the post-release hour.
+- Firebase health endpoint returned `status: ok`.
+- Git working trees were synchronized before the monitoring pass.
+- DNS/TLS check: all three `.co` hosts returned HTTPS 200; the `.com` hosts still point to transfer/parking addresses and do not yet present working TLS.
+- Secret inventory contains only `LMS_INGESTION_KEY`; Twilio and transactional-email credentials remain external release blockers.
