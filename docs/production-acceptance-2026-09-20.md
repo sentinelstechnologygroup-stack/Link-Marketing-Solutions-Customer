@@ -174,3 +174,13 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Production function state is `ACTIVE` and the post-invocation error scan is clean.
 - Production readiness notification `ebvv7ONX5JMhMhrwuFyw` returned `skipped / provider_not_configured`, proving the safe placeholder behavior.
 - `RESEND_API_KEY` version 1 is intentionally set to `not-configured`; replace it only after Resend setup and sender-domain verification.
+
+## Twilio Secret Manager hardening - 2026-09-21
+
+- Bound `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` to Firebase Secret Manager for both `communications` and `twilioWebhook`.
+- Created non-calling placeholder secret versions using `not-configured`.
+- Redeployed only `communications` and `twilioWebhook`; both report `ACTIVE`.
+- The full authorization and workflow suite remains `19/19` passing.
+- Production webhook readiness probe returned the expected `503 Telephony is not configured` response.
+- The only error-class request log is that intentional 503 probe and contains no runtime exception.
+- Real calling remains disabled until the Twilio SID, token, approved from-number, and voice webhook configuration are installed.
