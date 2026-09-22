@@ -632,19 +632,20 @@ exports.updateAgentRecord = onCall({ enforceAppCheck: true }, async (request) =>
 });
 
 exports.createAgentAssignment = onCall({ enforceAppCheck: true }, async (request) => {
-  const { tenantId, agentUid, industry, brandId = null, campaignIds = [], sourceIds = [], scope = 'assigned', permissions = [] } = request.data || {};
-  const { caller } = await requireMembership(request, tenantId, ['admin', 'supervisor']);
+  const { tenantId, agentUid, industry, brandId = null, campaignIds = [], sourceIds = [], scope = 'assigned', permissions = [], role = 'agent' } = request.data || {};
+  const assignmentRole = role === 'supervisor' ? 'supervisor' : 'agent';
+  const { caller } = await requireMembership(request, tenantId, assignmentRole === 'supervisor' ? ['admin'] : ['admin', 'supervisor']);
   if (typeof agentUid !== 'string' || !agentUid || typeof industry !== 'string' || !industry) throw new HttpsError('invalid-argument', 'agentUid and industry are required.');
   const user = await auth.getUser(agentUid).catch(() => null);
   if (!user || user.disabled) throw new HttpsError('not-found', 'Agent account is unavailable.');
-  const assignment = { agentUid, tenantId, industry, brandId, campaignIds, sourceIds, scope, permissions, role: 'agent', status: 'active', assignedBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+  const assignment = { agentUid, tenantId, industry, brandId, campaignIds, sourceIds, scope, permissions, role: assignmentRole, status: 'active', assignedBy: caller.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
   const ref = db.collection('agentAssignments').doc();
   await db.runTransaction(async (transaction) => {
     transaction.set(ref, assignment);
-    transaction.set(db.doc(`agentUsers/${agentUid}`), { uid: agentUid, email: user.email || null, displayName: user.displayName || null, role: 'agent', status: 'active', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(db.doc(`agentUsers/${agentUid}`), { uid: agentUid, email: user.email || null, displayName: user.displayName || null, role: assignmentRole, status: 'active', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(db.doc(`agentUsers/${agentUid}/assignments/${tenantId}`), { ...assignment, assignmentId: ref.id }, { merge: true });
   });
-  await recordAudit({ tenantId, actorUid: caller.uid, action: 'agent.assignment.created', target: ref.id, metadata: { agentUid, industry } });
+  await recordAudit({ tenantId, actorUid: caller.uid, action: 'agent.assignment.created', target: ref.id, metadata: { agentUid, industry, role: assignmentRole } });
   return { id: ref.id, ...assignment, status: 'active' };
 });
 
