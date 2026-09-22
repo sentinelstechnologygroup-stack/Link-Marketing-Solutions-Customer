@@ -184,3 +184,15 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Production webhook readiness probe returned the expected `503 Telephony is not configured` response.
 - The only error-class request log is that intentional 503 probe and contains no runtime exception.
 - Real calling remains disabled until the Twilio SID, token, approved from-number, and voice webhook configuration are installed.
+
+## LMS Super Admin production acceptance - 2026-09-21
+
+- Corrected `setIndustryConfig` so the approved `lmsSuperAdmin` claim is authoritative while retaining legacy `platformAdmin` compatibility.
+- Added guarded command `npm run provision:lms-super-admin`.
+- Provisioned `lms.super-admin.test@linkmarketingservices.co` with trusted LMS Super Admin claims and explicit UI assignments across all six tenants.
+- Live Agent CRM authentication passed.
+- The tenant selector showed Golden Cross production, Golden Cross Demo, internal test tenants, the permanent Realtor Demo, and LMS Sales.
+- All 16 direct Agent CRM routes loaded without authentication, authorization, or section-load errors.
+- The Admin Portal displayed the complete trusted client-provisioning workflow for tenant, Brand, industry, initial Client Admin, route key, assigned agents, and retention configuration.
+- `setIndustryConfig` is `ACTIVE`; Vercel reported no runtime errors during the acceptance pass.
+- The privileged browser session was signed out after verification.
