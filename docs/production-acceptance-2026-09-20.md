@@ -219,3 +219,14 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Admin Portal navigation was absent.
 - A direct `/admin` request redirected to the dashboard and exposed no administrative controls.
 - The test session was signed out after verification.
+
+## Consolidated internal release gate - 2026-09-21
+
+- Customer Portal report export verification passed for CSV, XLSX, DOCX, PDF, and empty-state artifacts.
+- Customer Portal repository-wide lint passed.
+- Customer Portal production build passed.
+- Agent CRM Firebase entity-contract verification passed.
+- Agent CRM repository-wide lint passed.
+- Agent CRM production build passed.
+- Firebase Auth, Firestore, workflow, email-contract, cross-tenant, cross-Brand, role, and Storage suite passed `19/19`.
+- Expected emulator Secret Manager warnings confirm that local tests do not consume production Twilio credentials.
