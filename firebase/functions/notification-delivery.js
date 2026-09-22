@@ -1,15 +1,15 @@
 const { getApps, initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
-const { defineSecret, defineString } = require('firebase-functions/params');
+const { defineSecret } = require('firebase-functions/params');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { buildNotificationEmail, emailDeliveryAllowed, emailProviderConfigured } = require('./notification-delivery-contract');
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 const resendApiKey = defineSecret('RESEND_API_KEY');
-const emailFrom = defineString('LMS_EMAIL_FROM', { default: 'Link Marketing Services <notifications@linkmarketingservices.co>' });
-const customerPortalUrl = defineString('LMS_CUSTOMER_PORTAL_URL', { default: 'https://customer.linkmarketingservices.co' });
+const emailFrom = process.env.LMS_EMAIL_FROM || 'Link Marketing Services <notifications@linkmarketingservices.co>';
+const customerPortalUrl = process.env.LMS_CUSTOMER_PORTAL_URL || 'https://customer.linkmarketingservices.co';
 
 async function updateDelivery(ref, status, detail = {}) {
   await ref.set({
@@ -78,7 +78,7 @@ exports.deliverNotificationEmail = onDocumentCreated({
   const content = buildNotificationEmail({
     title: notification.title,
     body: notification.body,
-    portalUrl: customerPortalUrl.value(),
+    portalUrl: customerPortalUrl,
   });
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -87,7 +87,7 @@ exports.deliverNotificationEmail = onDocumentCreated({
       'Content-Type': 'application/json',
       'Idempotency-Key': `lms-${tenantId}-${notificationId}`,
     },
-    body: JSON.stringify({ from: emailFrom.value(), to: [user.email], ...content }),
+    body: JSON.stringify({ from: emailFrom, to: [user.email], ...content }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
