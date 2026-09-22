@@ -230,3 +230,14 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Agent CRM production build passed.
 - Firebase Auth, Firestore, workflow, email-contract, cross-tenant, cross-Brand, role, and Storage suite passed `19/19`.
 - Expected emulator Secret Manager warnings confirm that local tests do not consume production Twilio credentials.
+
+## Final internal-ready checkpoint - 2026-09-21
+
+- Website, Customer Portal login, and Agent CRM login return HTTPS 200 on `.co`.
+- Customer production deployment `dpl_CKoRKWsC2vWRsvY7nNMUWBkqVvKP` is `Ready` and owns `customer.linkmarketingservices.co`.
+- Agent production deployment `dpl_A6NgmKwG3nHkax9RDMv7uP1tweRq` is `Ready` and owns `agent.linkmarketingservices.co`.
+- The Customer Vercel project already reserves `customer.linkmarketingservices.com`; external DNS/TLS is not yet ready.
+- Customer and Agent Vercel error scans are clean after the complete role and route acceptance passes.
+- Firebase contains no runtime exception; the sole error-class request is the documented intentional Twilio placeholder 503 probe.
+- Internal code, authorization, workflow, export, Storage, role, build, deployment, and monitoring gates are complete.
+- External release dependencies remain real Twilio configuration, real Resend configuration, optional SMS decision, provider-backed Golden Cross pilot, temporary credential rotation, and `.com` DNS/TLS cutover.
