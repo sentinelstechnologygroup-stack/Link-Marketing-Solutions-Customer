@@ -667,7 +667,7 @@ exports.setIndustryConfig = onCall({ enforceAppCheck: true }, async (request) =>
   const caller = requireAuth(request);
   if (typeof industryId !== 'string' || !industryId || !config || typeof config !== 'object') throw new HttpsError('invalid-argument', 'industryId and config are required.');
   const current = await auth.getUser(caller.uid);
-  if (!current.customClaims?.platformAdmin) throw new HttpsError('permission-denied', 'Platform administrator access is required.');
+  if (!current.customClaims?.lmsSuperAdmin && !current.customClaims?.platformAdmin) throw new HttpsError('permission-denied', 'LMS Super Admin access is required.');
   const missing = INDUSTRY_POLICY_FIELDS.filter((field) => config[field] === undefined || config[field] === null);
   if (missing.length) throw new HttpsError('invalid-argument', `Missing policy fields: ${missing.join(', ')}`);
   await db.doc(`industryConfigs/${industryId}`).set({ ...config, industryId, updatedBy: caller.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
