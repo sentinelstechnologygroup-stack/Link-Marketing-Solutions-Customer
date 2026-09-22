@@ -125,3 +125,11 @@ Rollback does not require deleting tenants, records, demos, or Storage objects.
 - Production Vite build passed.
 - Live authenticated Golden Cross verification passed: five leads resolve to `Golden Cross Realty`, Brand activity is populated, and the pilot agent tenant menu remains assignment-scoped.
 - The repository-wide lint command remains blocked by 15 pre-existing unused-import errors in legacy page files; none are introduced by this release.
+
+## Agent lint-gate release - 2026-09-21
+
+- Agent source commit: `5645238` (`Clear Agent CRM lint gate`).
+- Production deployment: `dpl_A6NgmKwG3nHkax9RDMv7uP1tweRq`.
+- Firebase entity-contract test, repository-wide lint, and production build all passed.
+- The changes remove unused import names only; no page layout, table, card, form, workflow, fixture, or demo behavior changed.
+- Live authenticated verification passed with five Golden Cross leads and correct Brand attribution.
